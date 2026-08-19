@@ -1,0 +1,192 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { Package, Truck, MapPin, RefreshCw, CheckCircle } from 'lucide-react';
+import client from '../../api/client';
+
+const STATUS_LABELS = {
+  ready_for_dispatch: { label: 'Ready', color: 'bg-blue-100 text-blue-700' },
+  picking_packing: { label: 'Picking/Packing', color: 'bg-indigo-100 text-indigo-700' },
+  dispatched: { label: 'Dispatched', color: 'bg-cyan-100 text-cyan-700' },
+};
+
+const DispatchQueuePage = () => {
+  const qc = useQueryClient();
+  const [trackingOrder, setTrackingOrder] = useState(null);
+  const [trackingForm, setTrackingForm] = useState({ courier: '', tracking_number: '', dispatch_notes: '' });
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['dispatch-queue'],
+    queryFn: () => client.get('/api/dispatch/queue').then(r => r.data),
+    refetchInterval: 30000
+  });
+  const orders = data?.data?.orders || [];
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }) => client.post(`/api/dispatch/orders/${id}/update-status`, { status }).then(r => r.data),
+    onSuccess: (_, { status }) => {
+      toast.success(`Order updated to ${status} ✅`);
+      qc.invalidateQueries({ queryKey: ['dispatch-queue'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error?.message || 'Update failed')
+  });
+
+  const trackingMutation = useMutation({
+    mutationFn: ({ id, payload }) => client.post(`/api/dispatch/orders/${id}/tracking`, payload).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Tracking entered! Order completed 🎉');
+      qc.invalidateQueries({ queryKey: ['dispatch-queue'] });
+      setTrackingOrder(null);
+      setTrackingForm({ courier: '', tracking_number: '', dispatch_notes: '' });
+    },
+    onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed to enter tracking')
+  });
+
+  const handleTrackingSubmit = (e) => {
+    e.preventDefault();
+    if (!trackingForm.courier || !trackingForm.tracking_number) {
+      toast.error('Courier and tracking number are required');
+      return;
+    }
+    trackingMutation.mutate({ id: trackingOrder.id, payload: trackingForm });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dispatch Queue</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage picking, packing, and dispatching of approved orders.</p>
+        </div>
+        <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-800" /></div>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-lg shadow">
+          <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+          <p className="text-gray-500">No orders in dispatch queue</p>
+        </div>
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MedRep</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispatch Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {orders.map(order => {
+                const s = STATUS_LABELS[order.status] || { label: order.status, color: 'bg-gray-100 text-gray-700' };
+                return (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-mono font-semibold text-blue-800">{order.getmeds_order_id}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm text-gray-900">{order.customer_name}</p>
+                      <p className="text-xs text-gray-400">{order.contact_number}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{order.medrep_name}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.color}`}>{s.label}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {order.dispatch_status || 'queued'}
+                      {order.tracking_number && <span className="ml-1 text-teal-600">· {order.tracking_number}</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {order.status === 'ready_for_dispatch' && (
+                          <button
+                            onClick={() => statusMutation.mutate({ id: order.id, status: 'picking' })}
+                            disabled={statusMutation.isPending}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            <Package className="w-3.5 h-3.5" /> Start Picking
+                          </button>
+                        )}
+                        {order.status === 'picking_packing' && (
+                          <>
+                            <button
+                              onClick={() => statusMutation.mutate({ id: order.id, status: 'packing' })}
+                              disabled={statusMutation.isPending}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              <Package className="w-3.5 h-3.5" /> Mark Packing
+                            </button>
+                            <button
+                              onClick={() => statusMutation.mutate({ id: order.id, status: 'dispatched' })}
+                              disabled={statusMutation.isPending}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-cyan-600 rounded hover:bg-cyan-700 disabled:opacity-50"
+                            >
+                              <Truck className="w-3.5 h-3.5" /> Dispatch
+                            </button>
+                          </>
+                        )}
+                        {order.status === 'dispatched' && (
+                          <button
+                            onClick={() => { setTrackingOrder(order); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 rounded hover:bg-teal-700"
+                          >
+                            <MapPin className="w-3.5 h-3.5" /> Enter Tracking
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tracking Modal */}
+      {trackingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Enter Tracking Details</h3>
+              <p className="text-sm text-gray-500">{trackingOrder.getmeds_order_id} · {trackingOrder.customer_name}</p>
+            </div>
+            <form onSubmit={handleTrackingSubmit} className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Courier *</label>
+                <input value={trackingForm.courier} onChange={e => setTrackingForm(f => ({ ...f, courier: e.target.value }))}
+                  placeholder="e.g. LBC, J&T, Grab Express" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number *</label>
+                <input value={trackingForm.tracking_number} onChange={e => setTrackingForm(f => ({ ...f, tracking_number: e.target.value }))}
+                  placeholder="e.g. LBC1234567890" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea value={trackingForm.dispatch_notes} onChange={e => setTrackingForm(f => ({ ...f, dispatch_notes: e.target.value }))}
+                  rows={2} placeholder="Optional dispatch notes..." className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setTrackingOrder(null)} className="flex-1 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={trackingMutation.isPending}
+                  className="flex-1 py-2 bg-teal-600 text-white rounded-md text-sm font-medium hover:bg-teal-700 disabled:opacity-50">
+                  {trackingMutation.isPending ? 'Saving...' : '✅ Complete Order'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DispatchQueuePage;
