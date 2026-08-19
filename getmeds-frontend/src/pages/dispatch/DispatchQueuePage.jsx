@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Package, Truck, MapPin, RefreshCw, CheckCircle } from 'lucide-react';
+import { Package, Truck, MapPin, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import client from '../../api/client';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const STATUS_LABELS = {
-  ready_for_dispatch: { label: 'Ready', color: 'bg-blue-100 text-blue-700' },
-  picking_packing: { label: 'Picking/Packing', color: 'bg-indigo-100 text-indigo-700' },
+  ready_for_dispatch: { label: 'Ready for Dispatch', color: 'bg-blue-100 text-blue-700' },
+  picking_packing: { label: 'Picking / Packing', color: 'bg-indigo-100 text-indigo-700' },
   dispatched: { label: 'Dispatched', color: 'bg-cyan-100 text-cyan-700' },
 };
 
@@ -14,6 +15,14 @@ const DispatchQueuePage = () => {
   const qc = useQueryClient();
   const [trackingOrder, setTrackingOrder] = useState(null);
   const [trackingForm, setTrackingForm] = useState({ courier: '', tracking_number: '', dispatch_notes: '' });
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    order: null,
+    status: '',
+    title: '',
+    message: '',
+    confirmText: 'Confirm'
+  });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['dispatch-queue'],
@@ -24,12 +33,48 @@ const DispatchQueuePage = () => {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }) => client.post(`/api/dispatch/orders/${id}/update-status`, { status }).then(r => r.data),
-    onSuccess: (_, { status }) => {
-      toast.success(`Order updated to ${status} ✅`);
+    onSuccess: (data, { status }) => {
+      const formattedStatus = status === 'picking' ? 'Picking/Packing' : status === 'packing' ? 'Packing' : status;
+      toast.success(`Order ${confirmDialog.order?.getmeds_order_id || ''} status updated to "${formattedStatus}" ✅`);
       qc.invalidateQueries({ queryKey: ['dispatch-queue'] });
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     },
     onError: (err) => toast.error(err.response?.data?.error?.message || 'Update failed')
   });
+
+  const requestStatusChange = (order, status) => {
+    let title = 'Update Order Status?';
+    let message = `Are you sure you want to update ${order.getmeds_order_id} (${order.customer_name})?`;
+    let confirmText = 'Confirm Update';
+
+    if (status === 'picking') {
+      title = 'Start Picking & Packing?';
+      message = `Are you ready to begin picking and packing items for Order ${order.getmeds_order_id} (${order.customer_name})?`;
+      confirmText = 'Yes, Start Picking';
+    } else if (status === 'packing') {
+      title = 'Mark as Packing?';
+      message = `Mark Order ${order.getmeds_order_id} as currently being packed into parcel?`;
+      confirmText = 'Yes, Mark Packing';
+    } else if (status === 'dispatched') {
+      title = 'Ready for Courier Dispatch?';
+      message = `Mark Order ${order.getmeds_order_id} as ready to hand over to the courier?`;
+      confirmText = 'Yes, Ready for Courier';
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      order,
+      status,
+      title,
+      message,
+      confirmText
+    });
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!confirmDialog.order || !confirmDialog.status) return;
+    statusMutation.mutate({ id: confirmDialog.order.id, status: confirmDialog.status });
+  };
 
   const trackingMutation = useMutation({
     mutationFn: ({ id, payload }) => client.post(`/api/dispatch/orders/${id}/tracking`, payload).then(r => r.data),
@@ -107,9 +152,9 @@ const DispatchQueuePage = () => {
                       <div className="flex items-center justify-end gap-2">
                         {order.status === 'ready_for_dispatch' && (
                           <button
-                            onClick={() => statusMutation.mutate({ id: order.id, status: 'picking' })}
+                            onClick={() => requestStatusChange(order, 'picking')}
                             disabled={statusMutation.isPending}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
                           >
                             <Package className="w-3.5 h-3.5" /> Start Picking
                           </button>
@@ -117,16 +162,16 @@ const DispatchQueuePage = () => {
                         {order.status === 'picking_packing' && (
                           <>
                             <button
-                              onClick={() => statusMutation.mutate({ id: order.id, status: 'packing' })}
+                              onClick={() => requestStatusChange(order, 'packing')}
                               disabled={statusMutation.isPending}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm"
                             >
                               <Package className="w-3.5 h-3.5" /> Mark Packing
                             </button>
                             <button
-                              onClick={() => statusMutation.mutate({ id: order.id, status: 'dispatched' })}
+                              onClick={() => requestStatusChange(order, 'dispatched')}
                               disabled={statusMutation.isPending}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-cyan-600 rounded hover:bg-cyan-700 disabled:opacity-50"
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-cyan-600 rounded hover:bg-cyan-700 disabled:opacity-50 transition-colors shadow-sm"
                             >
                               <Truck className="w-3.5 h-3.5" /> Dispatch
                             </button>
@@ -135,7 +180,7 @@ const DispatchQueuePage = () => {
                         {order.status === 'dispatched' && (
                           <button
                             onClick={() => { setTrackingOrder(order); }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 rounded hover:bg-teal-700"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 rounded hover:bg-teal-700 transition-colors shadow-sm"
                           >
                             <MapPin className="w-3.5 h-3.5" /> Enter Tracking
                           </button>
@@ -149,6 +194,17 @@ const DispatchQueuePage = () => {
           </table>
         </div>
       )}
+
+      {/* Confirmation Dialog for Picking / Packing / Dispatch */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleConfirmStatusChange}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        variant="primary"
+      />
 
       {/* Tracking Modal */}
       {trackingOrder && (

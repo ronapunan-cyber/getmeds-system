@@ -12,6 +12,8 @@ router.use(requireTestMode);
 router.get('/accounts', c.getTestAccounts);
 router.post('/accounts', c.createBulkAccounts);
 router.delete('/accounts', c.cleanupTestAccounts);
+router.delete('/accounts/:id', c.deleteSingleAccount);
 router.post('/accounts/cleanup', c.cleanupTestAccounts);
+router.post('/quick-login', c.quickLogin);
 
 module.exports = router;

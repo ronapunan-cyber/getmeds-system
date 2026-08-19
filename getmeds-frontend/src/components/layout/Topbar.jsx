@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../ui/NotificationBell';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import { LogOut, User, FlaskConical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Topbar = () => {
   const { user, logout } = useAuth();
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
@@ -31,7 +33,7 @@ const Topbar = () => {
             <span className="text-xs text-gray-500 capitalize leading-tight">{user?.role}</span>
           </div>
           <button 
-            onClick={logout}
+            onClick={() => setIsLogoutDialogOpen(true)}
             className="ml-4 p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-100 transition-colors"
             title="Logout"
           >
@@ -39,6 +41,17 @@ const Topbar = () => {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={isLogoutDialogOpen}
+        onClose={() => setIsLogoutDialogOpen(false)}
+        onConfirm={logout}
+        title="Log Out Confirmation"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Log Out"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </header>
   );
 };

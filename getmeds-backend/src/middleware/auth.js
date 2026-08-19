@@ -23,9 +23,31 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Middleware to check if the authenticated user is an Admin
+const isAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Authentication required. No active session found.' 
+    });
+  }
+
+  const role = (req.user.role || req.user.role_name || '').toLowerCase();
+  if (role !== 'admin') {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Access denied. Admin privileges required.' 
+    });
+  }
+
+  next();
+};
+
 function requireRole(...roles) {
+  const normalized = roles.map(r => r.toLowerCase());
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const userRole = (req.user?.role || req.user?.role_name || '').toLowerCase();
+    if (!req.user || !normalized.includes(userRole)) {
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: `Access restricted to: ${roles.join(', ')}` }
@@ -35,4 +57,10 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
+module.exports = { 
+  requireAuth, 
+  verifyToken: requireAuth, 
+  requireRole, 
+  isAdmin 
+};
+

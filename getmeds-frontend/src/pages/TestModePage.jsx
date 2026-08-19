@@ -31,7 +31,7 @@ const roleBadgeColors = {
 };
 
 const TestModePage = () => {
-  const { login, logout, user: currentUser } = useAuth();
+  const { login, quickLogin, logout, user: currentUser } = useAuth();
   const navigate = useNavigate();
 
   // Test Mode Status
@@ -155,13 +155,35 @@ const TestModePage = () => {
     }
   };
 
+  const handleDeleteSingleAccount = async (id, email) => {
+    setError(null);
+    try {
+      const res = await client.delete(`/api/test/accounts/${id}`);
+      if (res.data?.success) {
+        setSuccessMessage(`Deleted test account ${email}.`);
+        fetchExistingAccounts();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to delete test account');
+    }
+  };
+
   const handleQuickLogin = async (accountEmail, accountPassword) => {
     setError(null);
     try {
       if (currentUser) {
         logout();
       }
-      await login(accountEmail, accountPassword || password);
+      try {
+        if (quickLogin) {
+          await quickLogin(accountEmail);
+        } else {
+          await login(accountEmail, accountPassword || password);
+        }
+      } catch (quickErr) {
+        // Fallback to standard login with password if needed
+        await login(accountEmail, accountPassword || password);
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(`Quick login failed: ${err.response?.data?.error?.message || err.message}`);
@@ -598,13 +620,22 @@ const TestModePage = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => handleQuickLogin(acc.email, password)}
-                              className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded text-xs font-semibold transition-colors"
-                              title={`Log in as ${acc.email}`}
-                            >
-                              <KeyRound size={12} className="mr-1" /> Log In
-                            </button>
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => handleQuickLogin(acc.email)}
+                                className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded text-xs font-semibold transition-colors"
+                                title={`Log in as ${acc.email}`}
+                              >
+                                <KeyRound size={12} className="mr-1" /> Log In
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSingleAccount(acc.id, acc.email)}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title={`Delete ${acc.email}`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -1,43 +1,91 @@
 const db = require('../db/database');
 const bcrypt = require('bcryptjs');
 
-exports.getAll = (req, res, next) => {
+// Get all users with their roles
+const getAllUsers = (req, res, next) => {
   try {
     const users = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users ORDER BY name').all();
-    res.json({ success: true, data: { users } });
-  } catch (err) { next(err); }
+    const enriched = users.map(u => ({
+      ...u,
+      username: u.email ? u.email.split('@')[0] : `user_${u.id}`,
+      role_name: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'User',
+      first_name: u.name ? u.name.split(' ')[0] : '',
+      last_name: u.name ? u.name.split(' ').slice(1).join(' ') : ''
+    }));
+    res.status(200).json({ success: true, data: enriched });
+  } catch (err) {
+    if (next) return next(err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve users', error: err.message });
+  }
 };
 
-exports.create = (req, res, next) => {
+// Deactivate a user (Soft Delete)
+const deactivateUser = (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const user = db.prepare('SELECT id, name, is_active FROM users WHERE id = ?').get(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(userId);
+    res.status(200).json({ 
+      success: true, 
+      message: `User ${userId} deactivated successfully.` 
+    });
+  } catch (err) {
+    if (next) return next(err);
+    res.status(500).json({ success: false, message: 'Failed to deactivate user', error: err.message });
+  }
+};
+
+// Create a new user
+const create = (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
     if (!name || !email || !password || !role) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'name, email, password, role required' } });
     }
     const valid_roles = ['medrep', 'finance', 'dispatch', 'management', 'admin'];
-    if (!valid_roles.includes(role)) {
+    if (!valid_roles.includes(role.toLowerCase())) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: `role must be one of: ${valid_roles.join(', ')}` } });
     }
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (existing) return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: 'Email already in use' } });
 
     const hash = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)').run(name, email, hash, role);
+    const result = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)').run(name, email, hash, role.toLowerCase());
     const user = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ success: true, data: { user } });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (next) next(err);
+    else res.status(500).json({ success: false, error: err.message });
+  }
 };
 
-exports.update = (req, res, next) => {
+// Update an existing user
+const update = (req, res, next) => {
   try {
     const { role, is_active } = req.body;
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
     if (!user) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
 
-    if (role !== undefined) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+    if (role !== undefined) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role.toLowerCase(), user.id);
     if (is_active !== undefined) db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(is_active ? 1 : 0, user.id);
 
     const updated = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?').get(user.id);
     res.json({ success: true, data: { user: updated } });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (next) next(err);
+    else res.status(500).json({ success: false, error: err.message });
+  }
 };
+
+module.exports = {
+  getAllUsers,
+  getAll: getAllUsers,
+  deactivateUser,
+  create,
+  update
+};
+

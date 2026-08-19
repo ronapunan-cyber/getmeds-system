@@ -39,6 +39,18 @@ export const AuthProvider = ({ children }) => {
     throw new Error('Login failed');
   };
 
+  const quickLogin = async (email) => {
+    const { data } = await client.post('/api/test/quick-login', { email });
+    if (data.success) {
+      const { token: newToken, user: userData } = data.data;
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      return userData;
+    }
+    throw new Error('Quick login failed');
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -46,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, quickLogin, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

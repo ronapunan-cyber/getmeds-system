@@ -5,6 +5,24 @@ const bcrypt = require('bcryptjs');
 function run() {
   const hash = (pw) => bcrypt.hashSync(pw, 10);
 
+  // Seed Roles
+  const roleCount = db.prepare('SELECT COUNT(*) as count FROM roles').get().count;
+  if (roleCount === 0) {
+    const insRole = db.prepare('INSERT OR IGNORE INTO roles (name, description) VALUES (?, ?)');
+    const defaultRoles = [
+      { name: 'Admin', description: 'System Administrator with full access' },
+      { name: 'MedRep', description: 'Medical Representative' },
+      { name: 'Finance', description: 'Finance Officer' },
+      { name: 'Dispatch', description: 'Dispatch and Logistics Officer' }
+    ];
+    for (const r of defaultRoles) {
+      insRole.run(r.name, r.description);
+    }
+    console.log('✅ Seeded roles (Admin, MedRep, Finance, Dispatch).');
+  } else {
+    console.log('ℹ️  Roles already seeded, skipping.');
+  }
+
   // Seed Users
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   if (userCount === 0) {

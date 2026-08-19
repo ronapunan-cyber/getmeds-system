@@ -72,6 +72,7 @@ describe('Test Mode Security & Controller', () => {
     beforeEach(() => {
       process.env.TEST_MODE = 'true';
       process.env.NODE_ENV = 'development';
+      testController.cleanupTestAccounts({}, { json: () => {} }, () => {});
     });
 
     afterEach(() => {
@@ -169,6 +170,40 @@ describe('Test Mode Security & Controller', () => {
         expect(adminAfter).toBeDefined();
         expect(adminAfter.email).toBe('admin@getmeds.ph');
       }
+    });
+
+    test('authenticates user via quickLogin without password check when test mode is enabled', () => {
+      // Ensure admin@getmeds.ph exists
+      const req = { body: { email: 'admin@getmeds.ph' } };
+      let responseData = null;
+      const res = {
+        json: jest.fn((data) => { responseData = data; })
+      };
+
+      testController.quickLogin(req, res, (err) => { throw err; });
+
+      expect(responseData.success).toBe(true);
+      expect(responseData.data.token).toBeDefined();
+      expect(responseData.data.user.email).toBe('admin@getmeds.ph');
+      expect(responseData.data.user.role).toBe('admin');
+    });
+
+    test('returns 404 when quickLogin is attempted with nonexistent email', () => {
+      const req = { body: { email: 'nonexistent@test.getmeds.ph' } };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+
+      testController.quickLogin(req, res, (err) => { throw err; });
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'NOT_FOUND' })
+        })
+      );
     });
   });
 });

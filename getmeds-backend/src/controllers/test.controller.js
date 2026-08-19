@@ -1,7 +1,9 @@
 const db = require('../db/database');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { isTestModeEnabled } = require('../middleware/testMode');
 
+const SECRET = process.env.JWT_SECRET || 'getmeds_secret_change_in_production';
 const VALID_ROLES = ['medrep', 'finance', 'dispatch', 'management', 'admin'];
 
 // Protected system accounts that must never be deleted by test mode cleanup
@@ -43,12 +45,12 @@ exports.getTestAccounts = (req, res, next) => {
       console.log('[DEBUG] [TEST_MODE] Fetching list of test accounts');
     }
 
-    // Query accounts that match test naming patterns, excluding protected emails
+    // Query all accounts that are not protected system accounts
     const placeholders = PROTECTED_EMAILS.map(() => '?').join(',');
     const query = `
-      SELECT id, name, email, role, is_active, created_at 
+      SELECT id, name, email, role, is_active, is_test_account, created_at 
       FROM users 
-      WHERE (email LIKE 'testuser%' OR email LIKE '%@test.getmeds.ph' OR name LIKE 'Test %' OR email LIKE 'test%')
+      WHERE (is_test_account = 1 OR email LIKE 'test%' OR email LIKE '%@test.%' OR name LIKE '%User%' OR id > 6)
         AND email NOT IN (${placeholders})
       ORDER BY id ASC
     `;
@@ -84,7 +86,7 @@ exports.createBulkAccounts = (req, res, next) => {
 
     const results = [];
     const hash = bcrypt.hashSync(defaultPassword, 10);
-    const insertStmt = db.prepare('INSERT INTO users (name, email, password_hash, role, is_active) VALUES (?, ?, ?, ?, ?)');
+    const insertStmt = db.prepare('INSERT INTO users (name, email, password_hash, role, is_active, is_test_account) VALUES (?, ?, ?, ?, ?, 1)');
     const checkStmt = db.prepare('SELECT id, name, email, role FROM users WHERE email = ?');
 
     let createdCount = 0;
@@ -177,6 +179,37 @@ exports.createBulkAccounts = (req, res, next) => {
 };
 
 /**
+ * DELETE /api/test/accounts/:id
+ * Delete an individual test account
+ */
+exports.deleteSingleAccount = (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Test account not found' } });
+    }
+    if (PROTECTED_EMAILS.includes(user.email)) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Cannot delete protected system account' } });
+    }
+
+    const performDelete = db.transaction(() => {
+      db.prepare('DELETE FROM notifications WHERE recipient_id = ?').run(user.id);
+      db.prepare('UPDATE order_events SET actor_id = NULL WHERE actor_id = ?').run(user.id);
+      db.prepare('UPDATE payments SET verified_by = NULL WHERE verified_by = ?').run(user.id);
+      db.prepare('UPDATE dispatch_records SET dispatched_by = NULL WHERE dispatched_by = ?').run(user.id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+    });
+
+    performDelete();
+    console.log(`✅ [TEST_MODE] Deleted single test account ${user.email} (id: ${user.id})`);
+    res.json({ success: true, data: { deletedAccount: user } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * DELETE /api/test/accounts or POST /api/test/accounts/cleanup
  * Safely delete all test accounts without affecting production / seeded accounts
  */
@@ -188,7 +221,7 @@ exports.cleanupTestAccounts = (req, res, next) => {
     const selectQuery = `
       SELECT id, name, email, role 
       FROM users 
-      WHERE (email LIKE 'testuser%' OR email LIKE '%@test.getmeds.ph' OR name LIKE 'Test %' OR email LIKE 'test%')
+      WHERE (is_test_account = 1 OR email LIKE 'test%' OR email LIKE '%@test.%')
         AND email NOT IN (${placeholders})
     `;
     const accountsToDelete = db.prepare(selectQuery).all(...PROTECTED_EMAILS);
@@ -220,7 +253,13 @@ exports.cleanupTestAccounts = (req, res, next) => {
       db.prepare(`UPDATE payments SET verified_by = NULL WHERE verified_by IN (${idPlaceholders})`).run(...deleteUserIds);
       db.prepare(`UPDATE dispatch_records SET dispatched_by = NULL WHERE dispatched_by IN (${idPlaceholders})`).run(...deleteUserIds);
 
-      // 4. Finally delete the test users
+      // 4. Reassign medrep_id in orders to default user (id 1 or first protected user) to preserve order records
+      const defaultUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+      if (defaultUser) {
+        db.prepare(`UPDATE orders SET medrep_id = ? WHERE medrep_id IN (${idPlaceholders})`).run(defaultUser.id, ...deleteUserIds);
+      }
+
+      // 5. Finally delete the test users
       db.prepare(`DELETE FROM users WHERE id IN (${idPlaceholders})`).run(...deleteUserIds);
     });
 
@@ -233,6 +272,42 @@ exports.cleanupTestAccounts = (req, res, next) => {
       data: {
         deletedCount: accountsToDelete.length,
         deletedAccounts: accountsToDelete.map(a => ({ id: a.id, email: a.email, name: a.name, role: a.role }))
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/test/quick-login
+ * Direct 1-click login for test accounts when Test Mode is active
+ */
+exports.quickLogin = (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Email is required for quick login' } });
+    }
+    const user = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?').get(email);
+    if (!user) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `User with email "${email}" not found` } });
+    }
+    if (!user.is_active) {
+      return res.status(403).json({ success: false, error: { code: 'ACCOUNT_INACTIVE', message: 'Account is deactivated' } });
+    }
+
+    const token = jwt.sign({ id: user.id, role: user.role }, SECRET, { expiresIn: '8h' });
+
+    if (process.env.DEBUG === 'true') {
+      console.log(`[DEBUG] [TEST_MODE] Quick login successful for ${user.email} (${user.role})`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: { id: user.id, name: user.name, email: user.email, role: user.role }
       }
     });
   } catch (err) {
