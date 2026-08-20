@@ -9,9 +9,9 @@ import toast from 'react-hot-toast';
 const roleBadgeColors = {
   admin: 'bg-purple-100 text-purple-800 border-purple-200',
   management: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  finance: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  dispatch: 'bg-blue-100 text-blue-800 border-blue-200',
-  medrep: 'bg-amber-100 text-amber-800 border-amber-200',
+  finance: 'bg-pharmacy-green/15 text-pharmacy-green-dark border-pharmacy-green/30',
+  dispatch: 'bg-getmeds-blue/15 text-getmeds-blue-dark border-getmeds-blue/30',
+  medrep: 'bg-getmeds-blue/10 text-getmeds-blue-dark border-getmeds-blue/30',
 };
 
 const UsersPage = () => {
@@ -104,17 +104,17 @@ const UsersPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Users className="w-7 h-7 text-blue-700" />
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <Users className="w-7 h-7 text-getmeds-blue" />
+            <h1 className="text-2xl font-bold text-ink-primary">User Management</h1>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-secondary mt-1">
             View, audit, and manage system user accounts and role permissions.
           </p>
         </div>
         <button
           onClick={fetchUsers}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 rounded-md text-sm font-medium text-ink-secondary bg-white hover:bg-surface hover:text-ink-primary shadow-sm transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -131,38 +131,38 @@ const UsersPage = () => {
         </div>
       ) : (
         /* Users Table */
-        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-surface">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Name
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Username
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Email
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Role
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-ink-secondary uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-slate-100">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-ink-secondary">
                       No user accounts found in the system.
                     </td>
                   </tr>
@@ -170,22 +170,22 @@ const UsersPage = () => {
                   users.map((user) => {
                     const isActive = user.is_active === 1 || user.is_active === true;
                     const roleKey = (user.role || user.role_name || '').toLowerCase();
-                    const badgeColor = roleBadgeColors[roleKey] || 'bg-gray-100 text-gray-800 border-gray-200';
+                    const badgeColor = roleBadgeColors[roleKey] || 'bg-slate-100 text-slate-800 border-slate-200';
 
                     return (
-                      <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-gray-600">
+                      <tr key={user.id} className="hover:bg-surface transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-ink-secondary">
                           #{user.id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-semibold text-ink-primary">
                             {getUserDisplayName(user)}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-secondary font-mono">
                           {getUsername(user)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-secondary">
                           {user.email}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -196,11 +196,11 @@ const UsersPage = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {isActive ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pharmacy-green/15 text-pharmacy-green-dark border border-pharmacy-green/30">
                               Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                               Inactive
                             </span>
                           )}

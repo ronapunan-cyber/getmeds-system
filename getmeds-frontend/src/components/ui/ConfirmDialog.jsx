@@ -3,13 +3,13 @@ import Modal from './Modal';
 import { AlertTriangle } from 'lucide-react';
 
 const ConfirmDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', cancelText = 'Cancel', variant = 'danger' }) => {
-  const buttonColor = variant === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+  const buttonColor = variant === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-getmeds-blue hover:bg-getmeds-blue-hover focus:ring-getmeds-blue';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="sm:flex sm:items-start">
-        <div className={`mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10 ${variant === 'danger' ? 'bg-red-100' : 'bg-blue-100'}`}>
-          <AlertTriangle className={`h-6 w-6 ${variant === 'danger' ? 'text-red-600' : 'text-blue-600'}`} aria-hidden="true" />
+        <div className={`mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10 ${variant === 'danger' ? 'bg-red-100' : 'bg-getmeds-blue/15'}`}>
+          <AlertTriangle className={`h-6 w-6 ${variant === 'danger' ? 'text-red-600' : 'text-getmeds-blue'}`} aria-hidden="true" />
         </div>
         <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
           <div className="mt-2">

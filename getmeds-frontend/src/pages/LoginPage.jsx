@@ -69,8 +69,8 @@ const LoginPage = () => {
       ></div>
       
       {/* Blue Shadow / Overlay */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#1e3a8a]/90 to-[#1e3a8a]/40 mix-blend-multiply"></div>
-      <div className="absolute inset-0 z-0 bg-blue-900/30"></div> {/* Extra tint */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-r from-getmeds-blue-dark/90 to-getmeds-blue/40 mix-blend-multiply"></div>
+      <div className="absolute inset-0 z-0 bg-getmeds-blue-dark/30"></div> {/* Extra tint */}
 
       {/* Content Container */}
       <div className="relative z-10 flex flex-col md:flex-row items-center justify-between w-full h-full max-w-7xl mx-auto p-6 md:p-12">
@@ -89,10 +89,10 @@ const LoginPage = () => {
         <div className="w-full max-w-[420px] bg-white rounded-2xl p-10 shadow-2xl">
           
           <div className="w-full mx-auto">
-            <h2 className="text-[26px] font-semibold text-center text-gray-900">
+            <h2 className="text-[26px] font-semibold text-center text-ink-primary">
               Welcome Back!
             </h2>
-            <p className="text-[14px] text-gray-500 text-center mt-2 mb-8">
+            <p className="text-[14px] text-ink-secondary text-center mt-2 mb-8">
               We missed you! Please enter your details.
             </p>
 
@@ -103,14 +103,14 @@ const LoginPage = () => {
                   type="button"
                   onClick={() => handleQuickLogin(r.email)}
                   disabled={isLoading}
-                  className="px-3 py-1.5 rounded-full border border-gray-900 bg-transparent text-[11px] font-medium text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-full border border-ink-primary bg-transparent text-[11px] font-medium text-ink-primary hover:bg-surface hover:border-getmeds-blue hover:text-getmeds-blue transition-colors disabled:opacity-50"
                 >
                   {r.role}
                 </button>
               ))}
               <Link
                 to="/test-mode"
-                className="px-3 py-1.5 rounded-full border border-gray-900 bg-transparent text-[11px] font-medium text-gray-900 hover:bg-gray-100 transition-colors flex items-center justify-center"
+                className="px-3 py-1.5 rounded-full border border-amber-600 bg-amber-50 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition-colors flex items-center justify-center"
               >
                 Test Hub &rarr;
               </Link>
@@ -121,29 +121,29 @@ const LoginPage = () => {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">Email</label>
+                  <label className="block text-[13px] font-semibold text-ink-primary mb-1.5">Email</label>
                   <input
                     type="email"
                     required
                     placeholder="Enter your Email"
-                    className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B6BF9] focus:border-transparent placeholder-gray-400"
+                    className="w-full px-4 py-3.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue focus:border-transparent placeholder-ink-secondary/50"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">Password</label>
+                  <label className="block text-[13px] font-semibold text-ink-primary mb-1.5">Password</label>
                   <div className="relative">
                     <input
                       type="password"
                       required
                       placeholder="Enter Password"
-                      className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B6BF9] focus:border-transparent placeholder-gray-400"
+                      className="w-full px-4 py-3.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue focus:border-transparent placeholder-ink-secondary/50"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
-                    <button type="button" className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600">
+                    <button type="button" className="absolute right-4 top-3.5 text-ink-secondary hover:text-ink-primary">
                       <EyeOff className="h-5 w-5 mt-0.5" />
                     </button>
                   </div>
@@ -154,7 +154,7 @@ const LoginPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[#5B6BF9] text-white rounded-xl py-3.5 text-[15px] font-medium hover:bg-[#4A58D4] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#5B6BF9] disabled:opacity-70 flex items-center justify-center shadow-lg shadow-[#5B6BF9]/30"
+                  className="w-full bg-getmeds-blue text-white rounded-xl py-3.5 text-[15px] font-medium hover:bg-getmeds-blue-hover transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-getmeds-blue disabled:opacity-70 flex items-center justify-center shadow-lg shadow-getmeds-blue/25"
                 >
                   {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : null}
                   Sign in

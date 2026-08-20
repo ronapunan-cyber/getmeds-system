@@ -135,17 +135,18 @@ exports.getEvents = (req, res, next) => {
 
 exports.create = (req, res, next) => {
   try {
-    const { customer_id, items, delivery_address, delivery_notes, customer_type } = req.body;
+    const { customer_id, items, delivery_address, delivery_notes, customer_type, status: requestedStatus } = req.body;
 
     // Validation
     if (!customer_id) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'customer_id is required' } });
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'At least one order item is required' } });
     if (!delivery_address) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'delivery_address is required' } });
-    if (!customer_type || !['credit', 'direct'].includes(customer_type)) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'customer_type must be credit or direct' } });
 
     // Verify customer exists
     const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND is_active = 1').get(customer_id);
     if (!customer) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+
+    const resolvedCustomerType = customer.type || customer_type || 'direct';
 
     // Calculate totals and validate products
     let total_amount = 0;
@@ -161,28 +162,119 @@ exports.create = (req, res, next) => {
       resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unit_price: product.unit_price, subtotal, sku: product.sku, name: product.name });
     }
 
-    // Generate a temporary placeholder Order ID (real one assigned on submit)
-    const tempId = `DRAFT-${Date.now()}`;
+    // 1. Generate unique GetMeds Order ID (GM-YYYYMMDD-XXXX)
+    const getmedsOrderId = generateOrderId();
+    const isDraft = requestedStatus === 'draft';
+    const isCredit = resolvedCustomerType === 'credit';
+    const finalStatus = isDraft ? 'draft' : (isCredit ? 'ready_for_dispatch' : 'waiting_for_payment');
+    const now = new Date().toISOString();
 
     const createOrderTxn = db.transaction(() => {
+      let zohoResult = null;
+      if (!isDraft) {
+        zohoResult = createSalesOrderMock({
+          getmeds_order_id: getmedsOrderId,
+          customer_name: customer.name,
+          customer_type: resolvedCustomerType,
+          customer_master_type: customer.type,
+          total_amount,
+          delivery_address,
+          items: resolvedItems
+        });
+      }
+
       const result = db.prepare(`
-        INSERT INTO orders (getmeds_order_id, customer_id, medrep_id, status, customer_type, total_amount, delivery_address, delivery_notes, created_at, updated_at)
-        VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `).run(tempId, customer_id, req.user.id, customer_type, total_amount, delivery_address, delivery_notes || null);
+        INSERT INTO orders (
+          getmeds_order_id, customer_id, medrep_id, status, customer_type, total_amount,
+          delivery_address, delivery_notes, zoho_so_id, zoho_so_number, zoho_sync_status,
+          created_at, submitted_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        getmedsOrderId,
+        customer_id,
+        req.user.id,
+        finalStatus,
+        resolvedCustomerType,
+        total_amount,
+        delivery_address,
+        delivery_notes || null,
+        zohoResult ? zohoResult.salesorder.salesorder_id : null,
+        zohoResult ? zohoResult.salesorder.salesorder_number : null,
+        zohoResult ? 'synced' : 'pending',
+        now,
+        isDraft ? null : now,
+        now
+      );
 
       const orderId = result.lastInsertRowid;
 
+      // Insert line items
       const insItem = db.prepare('INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)');
       for (const ri of resolvedItems) {
         insItem.run(orderId, ri.product_id, ri.quantity, ri.unit_price, ri.subtotal);
       }
 
-      logEvent({ orderId, eventType: 'ORDER_CREATED', newStatus: 'draft', actorId: req.user.id, actorName: req.user.name, notes: 'Draft order created' });
+      // 2. Evaluate Workflow Gate & Create Child Records
+      if (!isDraft) {
+        if (isCredit) {
+          db.prepare("INSERT INTO dispatch_records (order_id, status, created_at) VALUES (?, 'queued', datetime('now'))").run(orderId);
+        } else {
+          db.prepare("INSERT INTO payments (order_id, status, created_at) VALUES (?, 'pending', datetime('now'))").run(orderId);
+        }
 
-      return orderId;
+        // 3. Trigger Audit Trail (ORDER_SUBMITTED in the same transaction)
+        logEvent({
+          orderId,
+          eventType: 'ORDER_SUBMITTED',
+          oldStatus: 'draft',
+          newStatus: finalStatus,
+          actorId: req.user.id,
+          actorName: req.user.name,
+          notes: `Order submitted for ${customer.name} (${isCredit ? 'Credit Fast-Track' : 'Direct Patient Payment Queue'})`
+        });
+      } else {
+        logEvent({
+          orderId,
+          eventType: 'ORDER_CREATED',
+          newStatus: 'draft',
+          actorId: req.user.id,
+          actorName: req.user.name,
+          notes: 'Draft order created'
+        });
+      }
+
+      return { orderId, getmedsOrderId, finalStatus, isCredit, zohoResult };
     });
 
-    const orderId = createOrderTxn();
+    const { orderId } = createOrderTxn();
+
+    // Trigger Notifications outside transaction
+    if (!isDraft) {
+      const orderDataForNotif = {
+        getmeds_order_id: getmedsOrderId,
+        customer_name: customer.name,
+        status: finalStatus,
+        medrep_email: req.user.email
+      };
+
+      notify({
+        orderId,
+        recipientIds: [req.user.id],
+        message: `Your order ${getmedsOrderId} for ${customer.name} has been submitted (${isCredit ? 'Ready for Dispatch' : 'Waiting for Finance Payment Verification'}).`,
+        eventType: 'ORDER_SUBMITTED',
+        orderData: orderDataForNotif
+      });
+
+      if (!isCredit) {
+        const financeIds = getUserIdsByRole('finance');
+        notify({ orderId, recipientIds: financeIds, message: `New direct patient order ${getmedsOrderId} requires payment verification.`, eventType: 'PAYMENT_VERIFICATION_REQUIRED', orderData: orderDataForNotif });
+      } else {
+        const dispatchIds = getUserIdsByRole('dispatch');
+        notify({ orderId, recipientIds: dispatchIds, message: `New credit order ${getmedsOrderId} is ready for dispatch.`, eventType: 'ORDER_READY_FOR_DISPATCH', orderData: orderDataForNotif });
+      }
+    }
+
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
     res.status(201).json({ success: true, data: { order } });
   } catch (err) { next(err); }
@@ -193,7 +285,7 @@ exports.create = (req, res, next) => {
 exports.submit = (req, res, next) => {
   try {
     const order = db.prepare(`
-      SELECT o.*, c.name as customer_name, c.contact_number, u.name as medrep_name, u.email as medrep_email
+      SELECT o.*, c.name as customer_name, c.type as customer_master_type, c.contact_number, u.name as medrep_name, u.email as medrep_email
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
       LEFT JOIN users u ON o.medrep_id = u.id
@@ -222,28 +314,31 @@ exports.submit = (req, res, next) => {
       const zohoResult = createSalesOrderMock({
         getmeds_order_id: getmedsOrderId,
         customer_name: order.customer_name,
+        customer_type: order.customer_type,
+        customer_master_type: order.customer_master_type,
         total_amount: order.total_amount,
         delivery_address: order.delivery_address,
         items
       });
 
       // Step 3: Determine next status based on customer type
-      // credit → ready_for_dispatch (no payment needed)
-      // direct → waiting_for_payment
-      const finalStatus = order.customer_type === 'credit' ? 'ready_for_dispatch' : 'waiting_for_payment';
+      // credit → ready_for_dispatch (bypasses finance payment check)
+      // direct → waiting_for_payment (routes to finance queue)
+      const isCredit = (order.customer_type === 'credit' || order.customer_master_type === 'credit');
+      const finalStatus = isCredit ? 'ready_for_dispatch' : 'waiting_for_payment';
 
       db.prepare(`
         UPDATE orders SET
-          getmeds_order_id = ?, status = ?, submitted_at = ?, updated_at = ?,
+          getmeds_order_id = ?, customer_type = ?, status = ?, submitted_at = ?, updated_at = ?,
           zoho_so_id = ?, zoho_so_number = ?, zoho_sync_status = 'synced'
         WHERE id = ?
-      `).run(getmedsOrderId, finalStatus, now, now,
+      `).run(getmedsOrderId, isCredit ? 'credit' : 'direct', finalStatus, now, now,
         zohoResult.salesorder.salesorder_id,
         zohoResult.salesorder.salesorder_number,
         order.id);
 
-      // Step 4: If direct patient, create payment record
-      if (order.customer_type === 'direct') {
+      // Step 4: If direct patient, create payment record for Finance queue
+      if (!isCredit) {
         db.prepare(`
           INSERT INTO payments (order_id, status, created_at)
           VALUES (?, 'pending', datetime('now'))
@@ -251,7 +346,7 @@ exports.submit = (req, res, next) => {
       }
 
       // Step 5: If credit customer, create dispatch record immediately
-      if (order.customer_type === 'credit') {
+      if (isCredit) {
         db.prepare(`
           INSERT INTO dispatch_records (order_id, status, created_at)
           VALUES (?, 'queued', datetime('now'))
@@ -259,7 +354,7 @@ exports.submit = (req, res, next) => {
       }
 
       // Audit trail — log all status hops
-      const statusPath = order.customer_type === 'credit'
+      const statusPath = isCredit
         ? ['submitted', 'validating', 'so_pending', 'so_created', 'ready_for_dispatch']
         : ['submitted', 'validating', 'so_pending', 'so_created', 'waiting_for_payment'];
 
@@ -272,6 +367,17 @@ exports.submit = (req, res, next) => {
 
       // Step 6: Notify
       const orderDataForNotif = { getmeds_order_id: getmedsOrderId, customer_name: order.customer_name, status: finalStatus, medrep_email: order.medrep_email };
+
+      // 6a. Notify submitting MedRep
+      notify({
+        orderId: order.id,
+        recipientIds: [req.user.id],
+        message: `Your order ${getmedsOrderId} for ${order.customer_name} has been submitted (${order.customer_type === 'credit' ? 'Ready for Dispatch' : 'Waiting for Finance Payment Verification'}).`,
+        eventType: 'ORDER_SUBMITTED',
+        orderData: orderDataForNotif
+      });
+
+      // 6b. Route notification based on customer type
       if (order.customer_type === 'direct') {
         const financeIds = getUserIdsByRole('finance');
         notify({ orderId: order.id, recipientIds: financeIds, message: `New direct patient order ${getmedsOrderId} requires payment verification.`, eventType: 'PAYMENT_VERIFICATION_REQUIRED', orderData: orderDataForNotif });
@@ -302,10 +408,13 @@ exports.setException = (req, res, next) => {
       return res.status(409).json({ success: false, error: { code: 'INVALID_TRANSITION', message: `Cannot move from ${order.status} to ${targetStatus}` } });
     }
 
-    db.prepare('UPDATE orders SET status = ?, exception_reason = ?, updated_at = datetime(\'now\') WHERE id = ?')
-      .run(targetStatus, reason || null, order.id);
+    const txn = db.transaction(() => {
+      db.prepare('UPDATE orders SET status = ?, exception_reason = ?, updated_at = datetime(\'now\') WHERE id = ?')
+        .run(targetStatus, reason || null, order.id);
 
-    logEvent({ orderId: order.id, eventType: 'EXCEPTION_SET', oldStatus: order.status, newStatus: targetStatus, actorId: req.user.id, actorName: req.user.name, notes: reason });
+      logEvent({ orderId: order.id, eventType: 'EXCEPTION_SET', oldStatus: order.status, newStatus: targetStatus, actorId: req.user.id, actorName: req.user.name, notes: reason });
+    });
+    txn();
 
     const medrepIds = [order.medrep_id];
     const mgmtIds = getUserIdsByRole('management');

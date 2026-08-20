@@ -6,9 +6,9 @@ import client from '../../api/client';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const STATUS_LABELS = {
-  ready_for_dispatch: { label: 'Ready for Dispatch', color: 'bg-blue-100 text-blue-700' },
-  picking_packing: { label: 'Picking / Packing', color: 'bg-indigo-100 text-indigo-700' },
-  dispatched: { label: 'Dispatched', color: 'bg-cyan-100 text-cyan-700' },
+  ready_for_dispatch: { label: 'Ready for Dispatch', color: 'bg-getmeds-blue/10 text-getmeds-blue-dark border border-getmeds-blue/30' },
+  picking_packing: { label: 'Picking / Packing', color: 'bg-indigo-50 text-indigo-700 border border-indigo-200' },
+  dispatched: { label: 'Dispatched', color: 'bg-getmeds-blue/15 text-getmeds-blue-dark border border-getmeds-blue/40' },
 };
 
 const DispatchQueuePage = () => {
@@ -100,53 +100,53 @@ const DispatchQueuePage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dispatch Queue</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage picking, packing, and dispatching of approved orders.</p>
+          <h1 className="text-2xl font-bold text-ink-primary">Dispatch & Logistics Queue</h1>
+          <p className="text-sm text-ink-secondary mt-1">Manage picking, packing, and dispatching of approved orders.</p>
         </div>
-        <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+        <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-md text-sm text-ink-secondary hover:bg-surface hover:text-ink-primary">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-800" /></div>
+        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-getmeds-blue" /></div>
       ) : orders.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-lg shadow">
-          <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
-          <p className="text-gray-500">No orders in dispatch queue</p>
+        <div className="text-center py-16 bg-white rounded-lg border border-slate-200 shadow-sm">
+          <CheckCircle className="w-12 h-12 mx-auto mb-3 text-pharmacy-green" />
+          <p className="text-ink-secondary">No orders in dispatch queue</p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-surface">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MedRep</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispatch Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Order ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Customer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">MedRep</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Dispatch Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {orders.map(order => {
-                const s = STATUS_LABELS[order.status] || { label: order.status, color: 'bg-gray-100 text-gray-700' };
+                const s = STATUS_LABELS[order.status] || { label: order.status, color: 'bg-slate-100 text-slate-700' };
                 return (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono font-semibold text-blue-800">{order.getmeds_order_id}</td>
+                  <tr key={order.id} className="hover:bg-surface transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono font-semibold text-getmeds-blue">{order.getmeds_order_id}</td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-900">{order.customer_name}</p>
-                      <p className="text-xs text-gray-400">{order.contact_number}</p>
+                      <p className="text-sm font-semibold text-ink-primary">{order.customer_name}</p>
+                      <p className="text-xs text-ink-secondary">{order.contact_number}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{order.medrep_name}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-sm text-ink-secondary">{order.medrep_name}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-ink-primary">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.color}`}>{s.label}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${s.color}`}>{s.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="px-4 py-3 text-xs text-ink-secondary">
                       {order.dispatch_status || 'queued'}
-                      {order.tracking_number && <span className="ml-1 text-teal-600">· {order.tracking_number}</span>}
+                      {order.tracking_number && <span className="ml-1 text-teal-700 font-medium">· {order.tracking_number}</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -154,7 +154,7 @@ const DispatchQueuePage = () => {
                           <button
                             onClick={() => requestStatusChange(order, 'picking')}
                             disabled={statusMutation.isPending}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
                           >
                             <Package className="w-3.5 h-3.5" /> Start Picking
                           </button>
@@ -164,14 +164,14 @@ const DispatchQueuePage = () => {
                             <button
                               onClick={() => requestStatusChange(order, 'packing')}
                               disabled={statusMutation.isPending}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm"
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm"
                             >
                               <Package className="w-3.5 h-3.5" /> Mark Packing
                             </button>
                             <button
                               onClick={() => requestStatusChange(order, 'dispatched')}
                               disabled={statusMutation.isPending}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-cyan-600 rounded hover:bg-cyan-700 disabled:opacity-50 transition-colors shadow-sm"
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-getmeds-blue rounded hover:bg-getmeds-blue-hover disabled:opacity-50 transition-colors shadow-sm"
                             >
                               <Truck className="w-3.5 h-3.5" /> Dispatch
                             </button>
@@ -180,7 +180,7 @@ const DispatchQueuePage = () => {
                         {order.status === 'dispatched' && (
                           <button
                             onClick={() => { setTrackingOrder(order); }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-teal-600 rounded hover:bg-teal-700 transition-colors shadow-sm"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded hover:bg-teal-700 transition-colors shadow-sm"
                           >
                             <MapPin className="w-3.5 h-3.5" /> Enter Tracking
                           </button>
@@ -209,31 +209,31 @@ const DispatchQueuePage = () => {
       {/* Tracking Modal */}
       {trackingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Enter Tracking Details</h3>
-              <p className="text-sm text-gray-500">{trackingOrder.getmeds_order_id} · {trackingOrder.customer_name}</p>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-ink-primary">Enter Tracking Details</h3>
+              <p className="text-sm text-ink-secondary">{trackingOrder.getmeds_order_id} · {trackingOrder.customer_name}</p>
             </div>
             <form onSubmit={handleTrackingSubmit} className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Courier *</label>
+                <label className="block text-sm font-medium text-ink-primary mb-1">Courier *</label>
                 <input value={trackingForm.courier} onChange={e => setTrackingForm(f => ({ ...f, courier: e.target.value }))}
-                  placeholder="e.g. LBC, J&T, Grab Express" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="e.g. LBC, J&T, Grab Express" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number *</label>
+                <label className="block text-sm font-medium text-ink-primary mb-1">Tracking Number *</label>
                 <input value={trackingForm.tracking_number} onChange={e => setTrackingForm(f => ({ ...f, tracking_number: e.target.value }))}
-                  placeholder="e.g. LBC1234567890" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="e.g. LBC1234567890" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-ink-primary mb-1">Notes</label>
                 <textarea value={trackingForm.dispatch_notes} onChange={e => setTrackingForm(f => ({ ...f, dispatch_notes: e.target.value }))}
-                  rows={2} placeholder="Optional dispatch notes..." className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  rows={2} placeholder="Optional dispatch notes..." className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setTrackingOrder(null)} className="flex-1 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => setTrackingOrder(null)} className="flex-1 py-2 border border-slate-200 rounded-md text-sm text-ink-secondary hover:bg-surface">Cancel</button>
                 <button type="submit" disabled={trackingMutation.isPending}
-                  className="flex-1 py-2 bg-teal-600 text-white rounded-md text-sm font-medium hover:bg-teal-700 disabled:opacity-50">
+                  className="flex-1 py-2 bg-pharmacy-green text-white rounded-md text-sm font-semibold hover:bg-pharmacy-green-hover disabled:opacity-50 shadow-sm transition-colors">
                   {trackingMutation.isPending ? 'Saving...' : '✅ Complete Order'}
                 </button>
               </div>

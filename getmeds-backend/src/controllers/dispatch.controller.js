@@ -44,19 +44,25 @@ exports.updateStatus = (req, res, next) => {
       if (!['ready_for_dispatch', 'picking_packing'].includes(order.status)) {
         return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: `Order status is ${order.status}` } });
       }
-      db.prepare('UPDATE orders SET status = \'picking_packing\', updated_at = ? WHERE id = ?').run(now, order.id);
-      db.prepare('UPDATE dispatch_records SET status = ? WHERE order_id = ?').run(status, order.id);
 
-      logEvent({ orderId: order.id, eventType: 'DISPATCH_STATUS_UPDATE', oldStatus: order.status, newStatus: 'picking_packing', actorId: req.user.id, actorName: req.user.name, notes: `Dispatch status: ${status}` });
+      const txn = db.transaction(() => {
+        db.prepare('UPDATE orders SET status = \'picking_packing\', updated_at = ? WHERE id = ?').run(now, order.id);
+        db.prepare('UPDATE dispatch_records SET status = ? WHERE order_id = ?').run(status, order.id);
+        logEvent({ orderId: order.id, eventType: 'DISPATCH_STATUS_UPDATE', oldStatus: order.status, newStatus: 'picking_packing', actorId: req.user.id, actorName: req.user.name, notes: `Dispatch status: ${status}` });
+      });
+      txn();
 
     } else if (status === 'dispatched') {
       if (order.status !== 'picking_packing') {
         return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: `Order must be in picking_packing to mark dispatched` } });
       }
-      db.prepare('UPDATE orders SET status = \'dispatched\', updated_at = ? WHERE id = ?').run(now, order.id);
-      db.prepare('UPDATE dispatch_records SET status = \'dispatched\', dispatched_by = ?, dispatched_at = ? WHERE order_id = ?').run(req.user.id, now, order.id);
 
-      logEvent({ orderId: order.id, eventType: 'ORDER_DISPATCHED', oldStatus: 'picking_packing', newStatus: 'dispatched', actorId: req.user.id, actorName: req.user.name });
+      const txn = db.transaction(() => {
+        db.prepare('UPDATE orders SET status = \'dispatched\', updated_at = ? WHERE id = ?').run(now, order.id);
+        db.prepare('UPDATE dispatch_records SET status = \'dispatched\', dispatched_by = ?, dispatched_at = ? WHERE order_id = ?').run(req.user.id, now, order.id);
+        logEvent({ orderId: order.id, eventType: 'ORDER_DISPATCHED', oldStatus: 'picking_packing', newStatus: 'dispatched', actorId: req.user.id, actorName: req.user.name });
+      });
+      txn();
 
       notify({ orderId: order.id, recipientIds: [order.medrep_user_id], message: `Order ${order.getmeds_order_id} has been dispatched. Awaiting tracking details.`, eventType: 'ORDER_DISPATCHED', orderData: order });
     }

@@ -129,16 +129,22 @@ ZOHO_ORG_ID=your_organization_id
 
 | GetMeds Field | Zoho Books Field | Notes |
 |---|---|---|
-| `getmeds_order_id` | `reference_number` | Links the two systems |
-| `customer_id` | `customer_id` | Must map to Zoho customer ID |
-| `items[].product_id` | `line_items[].item_id` | Must map to Zoho item ID |
+| `getmeds_order_id` | `reference_number` | Links the two systems (single source of truth) |
+| `customer_id` | `customer_id` | Mapped to Zoho Customer ID |
+| `customer_type` | `custom_fields[0]` ("GetMeds Customer Type") | `"Credit Customer"` vs `"Non-Credit Patient"` |
+| `status` / finance state | `custom_fields[1]` ("Payment Status") | `"Credit Terms (Auto-approved)"` vs `"Pending Finance Verification"` |
+| `items[].product_id` | `line_items[].item_id` | Mapped to Zoho Item SKU/ID |
+| `items[].unit_price` | `line_items[].rate` | Unit selling rate |
+| `items[].quantity` | `line_items[].quantity` | Line item quantity |
 | `total_amount` | `total` | Auto-calculated by Zoho |
-| `delivery_address` | `shipping_address.address` | |
+| `delivery_address` | `shipping_address.address` | Shipping destination |
+
+> **Architectural Note on SO Numbering**: `salesorder_number` is intentionally omitted from the outgoing POST request body. This allows Zoho Books to auto-assign its own sequential sales order sequence (avoiding collisions with manual entries). The GetMeds backend captures the returned `salesorder_number` and `salesorder_id` in Zoho's response and persists them in the database.
 
 **Zoho endpoint**: `POST https://www.zohoapis.com/books/v3/salesorders?organization_id={ORG_ID}`  
 **Auth**: OAuth2 Bearer token (refresh via `https://accounts.zoho.com/oauth/v2/token`)
 
-**Retry strategy**: On API failure, set `zoho_sync_status = 'failed'` and retry via a background cron job (not yet implemented in prototype — retry stub location: `src/integrations/zoho/zohoClient.js`).
+**Retry strategy**: On API failure, set `zoho_sync_status = 'failed'` and retry via a background cron job (retry stub location: `src/integrations/zoho/zohoClient.js`).
 
 ---
 

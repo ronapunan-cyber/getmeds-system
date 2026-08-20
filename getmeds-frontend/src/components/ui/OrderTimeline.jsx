@@ -26,13 +26,13 @@ const OrderTimeline = ({ currentStatus, history }) => {
           
           return (
             <div key={status} className="relative flex flex-col items-center group">
-              <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-4 ring-white
-                ${isCompleted ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}
-                ${isCurrent ? 'ring-blue-100' : ''}`}
+              <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-4 ring-white transition-all
+                ${isCompleted ? (status === 'DELIVERED' || index === statusOrder.length - 1 ? 'bg-pharmacy-green text-white' : 'bg-getmeds-blue text-white') : 'bg-slate-200 text-slate-500'}
+                ${isCurrent ? 'ring-getmeds-blue/30' : ''}`}
               >
                 <Icon className="w-4 h-4" />
               </span>
-              <span className={`mt-2 text-xs font-medium ${isCompleted ? 'text-gray-900' : 'text-gray-500'}`}>
+              <span className={`mt-2 text-xs font-semibold ${isCompleted ? 'text-ink-primary' : 'text-ink-secondary'}`}>
                 {status}
               </span>
             </div>

@@ -6,21 +6,21 @@ import { Plus, RefreshCw, Eye } from 'lucide-react';
 import client from '../../api/client';
 
 const STATUS_COLORS = {
-  draft: 'bg-gray-100 text-gray-700',
-  submitted: 'bg-yellow-100 text-yellow-700',
-  validating: 'bg-yellow-100 text-yellow-700',
-  so_pending: 'bg-yellow-100 text-yellow-700',
-  so_created: 'bg-blue-100 text-blue-700',
-  waiting_for_payment: 'bg-orange-100 text-orange-700',
-  payment_verified: 'bg-blue-100 text-blue-700',
-  ready_for_dispatch: 'bg-blue-100 text-blue-700',
-  picking_packing: 'bg-indigo-100 text-indigo-700',
-  dispatched: 'bg-cyan-100 text-cyan-700',
-  tracking_shared: 'bg-teal-100 text-teal-700',
-  completed: 'bg-green-100 text-green-700',
-  on_hold: 'bg-amber-100 text-amber-700',
-  exception: 'bg-red-100 text-red-700',
-  cancelled: 'bg-red-100 text-red-700',
+  draft: 'bg-slate-100 text-slate-700 border border-slate-300',
+  submitted: 'bg-state-warning-light text-amber-900 border border-state-warning/30',
+  validating: 'bg-state-warning-light text-amber-900 border border-state-warning/30',
+  so_pending: 'bg-state-warning-light text-amber-900 border border-state-warning/30',
+  so_created: 'bg-getmeds-blue/10 text-getmeds-blue-dark border border-getmeds-blue/30',
+  waiting_for_payment: 'bg-state-warning-light text-amber-950 border border-state-warning font-semibold',
+  payment_verified: 'bg-pharmacy-green/15 text-pharmacy-green-dark border border-pharmacy-green/30',
+  ready_for_dispatch: 'bg-getmeds-blue/10 text-getmeds-blue-dark border border-getmeds-blue/30',
+  picking_packing: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  dispatched: 'bg-getmeds-blue/15 text-getmeds-blue-dark border border-getmeds-blue/40',
+  tracking_shared: 'bg-teal-50 text-teal-800 border border-teal-200',
+  completed: 'bg-pharmacy-green/15 text-pharmacy-green-dark border border-pharmacy-green/40',
+  on_hold: 'bg-state-error-light text-red-800 border border-state-error/30',
+  exception: 'bg-state-error-light text-red-950 border border-state-error font-bold',
+  cancelled: 'bg-state-error-light text-red-700 border border-state-error/30',
 };
 
 const MyOrdersPage = () => {
@@ -45,14 +45,14 @@ const MyOrdersPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
-          <p className="text-sm text-gray-500 mt-1">Track status of orders you have submitted.</p>
+          <h1 className="text-2xl font-bold text-ink-primary">My Orders</h1>
+          <p className="text-sm text-ink-secondary mt-1">Track status of orders you have submitted.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+          <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-md text-sm text-ink-secondary hover:bg-surface hover:text-ink-primary">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button onClick={() => navigate('/orders/new')} className="flex items-center gap-1.5 px-3 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900">
+          <button onClick={() => navigate('/orders/new')} className="flex items-center gap-1.5 px-3.5 py-2 bg-getmeds-blue text-white rounded-md text-sm font-semibold hover:bg-getmeds-blue-hover transition-colors shadow-sm">
             <Plus className="w-4 h-4" /> New Order
           </button>
         </div>
@@ -62,63 +62,63 @@ const MyOrdersPage = () => {
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setStatusFilter('')}
-          className={`px-3 py-1 rounded-full text-xs font-medium ${!statusFilter ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!statusFilter ? 'bg-getmeds-blue text-white' : 'bg-white border border-slate-200 text-ink-secondary hover:bg-surface'}`}
         >All</button>
         {statuses.map(s => (
           <button key={s} onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
-            className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${statusFilter === s ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${statusFilter === s ? 'bg-getmeds-blue text-white' : 'bg-white border border-slate-200 text-ink-secondary hover:bg-surface'}`}
           >{s.replace(/_/g, ' ')}</button>
         ))}
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-800" /></div>
+        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-getmeds-blue" /></div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700 text-sm">Failed to load orders.</div>
       ) : orders.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-gray-500 mb-4">No orders found.</p>
-          <button onClick={() => navigate('/orders/new')} className="px-4 py-2 bg-blue-800 text-white rounded-md text-sm font-medium hover:bg-blue-900">
+        <div className="text-center py-16 bg-white rounded-lg border border-slate-200 shadow-sm">
+          <p className="text-ink-secondary mb-4">No orders found.</p>
+          <button onClick={() => navigate('/orders/new')} className="px-4 py-2 bg-getmeds-blue text-white rounded-md text-sm font-semibold hover:bg-getmeds-blue-hover">
             Create Your First Order
           </button>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-surface">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Order ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Customer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Payment</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Date</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {orders.map(order => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-blue-800">{order.getmeds_order_id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{order.customer_name}</td>
+                <tr key={order.id} className="hover:bg-surface transition-colors">
+                  <td className="px-4 py-3 text-sm font-mono font-semibold text-getmeds-blue">{order.getmeds_order_id}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-ink-primary">{order.customer_name}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] || 'bg-slate-100 text-slate-700'}`}>
                       {order.status?.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-ink-primary">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3">
                     {order.payment_status ? (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${order.payment_status === 'verified' ? 'bg-green-100 text-green-700' : order.payment_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${order.payment_status === 'verified' ? 'bg-pharmacy-green/15 text-pharmacy-green-dark' : order.payment_status === 'rejected' ? 'bg-state-error-light text-red-700' : 'bg-state-warning-light text-amber-900'}`}>
                         {order.payment_status}
                       </span>
-                    ) : <span className="text-gray-400 text-xs">—</span>}
+                    ) : <span className="text-ink-secondary/60 text-xs">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
+                  <td className="px-4 py-3 text-xs text-ink-secondary">
                     {order.created_at ? format(new Date(order.created_at), 'MMM d, yyyy') : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link to={`/orders/${order.id}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    <Link to={`/orders/${order.id}`} className="inline-flex items-center gap-1 text-xs text-getmeds-blue hover:text-getmeds-blue-dark font-semibold">
                       <Eye className="w-3.5 h-3.5" /> View
                     </Link>
                   </td>

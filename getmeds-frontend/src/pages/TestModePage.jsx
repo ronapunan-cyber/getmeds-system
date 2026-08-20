@@ -23,11 +23,11 @@ import {
 } from 'lucide-react';
 
 const roleBadgeColors = {
-  admin: 'bg-red-100 text-red-800 border-red-200',
-  management: 'bg-purple-100 text-purple-800 border-purple-200',
-  finance: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  dispatch: 'bg-amber-100 text-amber-800 border-amber-200',
-  medrep: 'bg-blue-100 text-blue-800 border-blue-200',
+  admin: 'bg-purple-100 text-purple-800 border-purple-200',
+  management: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  finance: 'bg-pharmacy-green/15 text-pharmacy-green-dark border-pharmacy-green/30',
+  dispatch: 'bg-getmeds-blue/15 text-getmeds-blue-dark border-getmeds-blue/30',
+  medrep: 'bg-getmeds-blue/10 text-getmeds-blue-dark border-getmeds-blue/30',
 };
 
 const TestModePage = () => {
@@ -420,7 +420,7 @@ const TestModePage = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full flex items-center justify-center px-4 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="w-full flex items-center justify-center px-4 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-getmeds-blue hover:bg-getmeds-blue-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-getmeds-blue disabled:opacity-50 transition-colors"
                   >
                     {isSubmitting ? (
                       <>
@@ -543,7 +543,7 @@ const TestModePage = () => {
                             {acc.status === 'created' && (
                               <button
                                 onClick={() => handleQuickLogin(acc.email, acc.password)}
-                                className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs font-semibold"
+                                className="inline-flex items-center px-2 py-1 bg-getmeds-blue/15 text-getmeds-blue hover:bg-getmeds-blue/25 rounded text-xs font-semibold"
                                 title="Log in directly with this account"
                               >
                                 Quick Login <ArrowRight size={12} className="ml-1" />

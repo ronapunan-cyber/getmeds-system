@@ -53,45 +53,45 @@ const FinanceQueuePage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Finance Queue</h1>
-          <p className="text-sm text-gray-500 mt-1">Verify payment for direct patient orders before dispatch.</p>
+          <h1 className="text-2xl font-bold text-ink-primary">Finance Payment Verification Queue</h1>
+          <p className="text-sm text-ink-secondary mt-1">Direct patient orders awaiting advance payment clearance.</p>
         </div>
-        <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">
+        <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-md text-sm text-ink-secondary hover:bg-surface hover:text-ink-primary">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Queue */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-orange-500" />
-            <h2 className="text-sm font-semibold text-gray-700">Pending Payment Verification ({orders.length})</h2>
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
+          <div className="px-4 py-3 border-b border-slate-200 bg-surface flex items-center gap-2">
+            <Clock className="w-4 h-4 text-state-warning" />
+            <h2 className="text-sm font-semibold text-ink-primary">Pending Payment Verification ({orders.length})</h2>
           </div>
           {isLoading ? (
-            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-800" /></div>
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-getmeds-blue" /></div>
           ) : orders.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <CheckCircle className="w-10 h-10 mx-auto mb-2 text-green-400" />
+            <div className="text-center py-12 text-ink-secondary">
+              <CheckCircle className="w-10 h-10 mx-auto mb-2 text-pharmacy-green" />
               <p className="text-sm">No orders pending payment verification</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200">
+            <ul className="divide-y divide-slate-100">
               {orders.map(order => (
                 <li
                   key={order.id}
                   onClick={() => handleSelect(order)}
-                  className={`p-4 cursor-pointer hover:bg-blue-50 transition-colors ${selectedOrder?.id === order.id ? 'bg-blue-50 border-l-4 border-blue-800' : ''}`}
+                  className={`p-4 cursor-pointer hover:bg-surface transition-colors ${selectedOrder?.id === order.id ? 'bg-getmeds-blue/10 border-l-4 border-getmeds-blue' : ''}`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-sm font-mono font-semibold text-blue-800">{order.getmeds_order_id}</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{order.customer_name}</p>
-                      <p className="text-xs text-gray-500">{order.medrep_name}</p>
+                      <p className="text-sm font-mono font-semibold text-getmeds-blue">{order.getmeds_order_id}</p>
+                      <p className="text-sm text-ink-primary mt-0.5 font-medium">{order.customer_name}</p>
+                      <p className="text-xs text-ink-secondary">{order.medrep_name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                      <p className="text-xs text-orange-600 font-medium">Waiting {waitingHours(order)}</p>
+                      <p className="text-sm font-bold text-ink-primary">₱{(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-xs text-amber-700 font-semibold mt-0.5">Waiting {waitingHours(order)}</p>
                     </div>
                   </div>
                 </li>
@@ -101,26 +101,26 @@ const FinanceQueuePage = () => {
         </div>
 
         {/* Right: Verification form */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200">
           {!selectedOrder ? (
-            <div className="flex flex-col items-center justify-center h-full py-20 text-gray-400">
-              <CheckCircle className="w-12 h-12 mb-3 text-gray-300" />
+            <div className="flex flex-col items-center justify-center h-full py-20 text-ink-secondary">
+              <CheckCircle className="w-12 h-12 mb-3 text-slate-300" />
               <p className="text-sm">Select an order to verify payment</p>
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Verify Payment — {selectedOrder.getmeds_order_id}</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{selectedOrder.customer_name} · ₱{(selectedOrder.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+              <div className="px-4 py-3 border-b border-slate-200 bg-surface">
+                <h2 className="text-sm font-semibold text-ink-primary">Verify Payment — {selectedOrder.getmeds_order_id}</h2>
+                <p className="text-xs text-ink-secondary mt-0.5">{selectedOrder.customer_name} · ₱{(selectedOrder.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
               </div>
               <form onSubmit={handleSubmit} className="p-4 space-y-4">
                 {/* Decision */}
                 <div className="flex gap-3">
                   {['verified', 'rejected'].map(s => (
-                    <label key={s} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-md border-2 cursor-pointer transition-colors ${form.status === s ? (s === 'verified' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50') : 'border-gray-200 hover:border-gray-300'}`}>
+                    <label key={s} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-md border-2 cursor-pointer transition-colors ${form.status === s ? (s === 'verified' ? 'border-pharmacy-green bg-pharmacy-green/10' : 'border-state-error bg-state-error-light') : 'border-slate-200 hover:border-slate-300'}`}>
                       <input type="radio" value={s} checked={form.status === s} onChange={() => setForm(f => ({ ...f, status: s }))} className="sr-only" />
-                      {s === 'verified' ? <CheckCircle className={`w-5 h-5 ${form.status === s ? 'text-green-600' : 'text-gray-400'}`} /> : <XCircle className={`w-5 h-5 ${form.status === s ? 'text-red-600' : 'text-gray-400'}`} />}
-                      <span className={`text-sm font-medium capitalize ${form.status === s ? (s === 'verified' ? 'text-green-700' : 'text-red-700') : 'text-gray-500'}`}>{s}</span>
+                      {s === 'verified' ? <CheckCircle className={`w-5 h-5 ${form.status === s ? 'text-pharmacy-green' : 'text-slate-400'}`} /> : <XCircle className={`w-5 h-5 ${form.status === s ? 'text-red-600' : 'text-slate-400'}`} />}
+                      <span className={`text-sm font-semibold capitalize ${form.status === s ? (s === 'verified' ? 'text-pharmacy-green-dark' : 'text-red-700') : 'text-ink-secondary'}`}>{s}</span>
                     </label>
                   ))}
                 </div>
@@ -128,26 +128,26 @@ const FinanceQueuePage = () => {
                 {form.status === 'verified' && (
                   <>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Payment Reference *</label>
+                      <label className="block text-xs font-semibold text-ink-primary mb-1">Payment Reference *</label>
                       <input value={form.payment_reference} onChange={e => setForm(f => ({ ...f, payment_reference: e.target.value }))}
-                        placeholder="e.g. TXN-2026081901234" className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        placeholder="e.g. TXN-2026081901234" className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Payment Date</label>
+                        <label className="block text-xs font-semibold text-ink-primary mb-1">Payment Date</label>
                         <input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))}
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
+                        <label className="block text-xs font-semibold text-ink-primary mb-1">Amount</label>
                         <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
+                      <label className="block text-xs font-semibold text-ink-primary mb-1">Payment Method</label>
                       <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue">
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="gcash">GCash</option>
                         <option value="cash">Cash</option>
@@ -157,12 +157,12 @@ const FinanceQueuePage = () => {
                   </>
                 )}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                  <label className="block text-xs font-semibold text-ink-primary mb-1">Notes</label>
                   <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                    placeholder="Optional notes..." className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    placeholder="Optional notes..." className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-getmeds-blue" />
                 </div>
                 <button type="submit" disabled={mutation.isPending}
-                  className={`w-full py-2.5 text-sm font-medium rounded-md text-white disabled:opacity-50 ${form.status === 'verified' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                  className={`w-full py-2.5 text-sm font-semibold rounded-md text-white disabled:opacity-50 shadow-sm transition-colors ${form.status === 'verified' ? 'bg-pharmacy-green hover:bg-pharmacy-green-hover' : 'bg-red-600 hover:bg-red-700'}`}>
                   {mutation.isPending ? 'Processing...' : form.status === 'verified' ? '✅ Verify Payment & Release to Dispatch' : '❌ Reject Payment (Put on Hold)'}
                 </button>
               </form>

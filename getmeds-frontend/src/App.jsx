@@ -6,12 +6,16 @@ import Layout from './components/layout/Layout';
 // Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import MedrepDashboardPage from './pages/medrep/MedrepDashboardPage';
 import NewOrderPage from './pages/medrep/NewOrderPage';
 import MyOrdersPage from './pages/medrep/MyOrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import FinanceQueuePage from './pages/finance/FinanceQueuePage';
+import PaymentHistoryPage from './pages/finance/PaymentHistoryPage';
 import DispatchQueuePage from './pages/dispatch/DispatchQueuePage';
+import DispatchHistoryPage from './pages/dispatch/DispatchHistoryPage';
 import ManagementDashboardPage from './pages/management/ManagementDashboardPage';
+import ExceptionHubPage from './pages/management/ExceptionHubPage';
 import UsersPage from './pages/admin/UsersPage';
 import TestModePage from './pages/TestModePage';
 
@@ -22,7 +26,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/" replace />;
   }
   
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  const role = (user.role || '').toLowerCase();
+  const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+
+  if (allowedRoles && !normalizedAllowedRoles.includes(role)) {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -41,7 +48,15 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           
-          <Route path="/orders" element={<MyOrdersPage />} />
+          {/* MedRep Routes */}
+          <Route 
+            path="/medrep/dashboard" 
+            element={
+              <ProtectedRoute allowedRoles={['medrep']}>
+                <MedrepDashboardPage />
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/orders/new" 
             element={
@@ -50,26 +65,46 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route path="/orders" element={<MyOrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           
+          {/* Finance Routes */}
           <Route 
             path="/finance" 
             element={
-              <ProtectedRoute allowedRoles={['finance']}>
+              <ProtectedRoute allowedRoles={['finance', 'management', 'admin']}>
                 <FinanceQueuePage />
               </ProtectedRoute>
             } 
           />
-          
           <Route 
-            path="/dispatch" 
+            path="/finance/history" 
             element={
-              <ProtectedRoute allowedRoles={['dispatch']}>
-                <DispatchQueuePage />
+              <ProtectedRoute allowedRoles={['finance', 'management', 'admin']}>
+                <PaymentHistoryPage />
               </ProtectedRoute>
             } 
           />
           
+          {/* Dispatch Routes */}
+          <Route 
+            path="/dispatch" 
+            element={
+              <ProtectedRoute allowedRoles={['dispatch', 'management', 'admin']}>
+                <DispatchQueuePage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/dispatch/history" 
+            element={
+              <ProtectedRoute allowedRoles={['dispatch', 'management', 'admin']}>
+                <DispatchHistoryPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Management Routes */}
           <Route 
             path="/management" 
             element={
@@ -78,7 +113,16 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/management/exceptions" 
+            element={
+              <ProtectedRoute allowedRoles={['management', 'admin']}>
+                <ExceptionHubPage />
+              </ProtectedRoute>
+            } 
+          />
           
+          {/* Admin Routes */}
           <Route 
             path="/admin/users" 
             element={

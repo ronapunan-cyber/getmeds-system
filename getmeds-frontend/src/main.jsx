@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
+import { DebugProvider } from './context/DebugContext.jsx'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -19,22 +20,24 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <App />
-        <Toaster 
-          position="top-right" 
-          containerStyle={{ zIndex: 999999 }}
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#333',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '500',
-              padding: '12px 16px',
-              borderRadius: '8px'
-            }
-          }}
-        />
+        <DebugProvider>
+          <App />
+          <Toaster 
+            position="top-right" 
+            containerStyle={{ zIndex: 999999 }}
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#1E293B',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: '500',
+                padding: '12px 16px',
+                borderRadius: '8px'
+              }
+            }}
+          />
+        </DebugProvider>
       </AuthProvider>
     </QueryClientProvider>
   </React.StrictMode>,

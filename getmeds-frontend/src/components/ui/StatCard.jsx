@@ -2,17 +2,17 @@ import React from 'react';
 
 const StatCard = ({ title, value, icon: Icon, color = 'blue' }) => {
   const colors = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    red: 'bg-red-50 text-red-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    purple: 'bg-purple-50 text-purple-600',
+    blue: 'bg-getmeds-blue/15 text-getmeds-blue',
+    green: 'bg-pharmacy-green/15 text-pharmacy-green',
+    red: 'bg-red-100 text-red-600',
+    yellow: 'bg-amber-100 text-amber-700',
+    purple: 'bg-purple-100 text-purple-600',
   };
 
   const iconColorClass = colors[color] || colors.blue;
 
   return (
-    <div className="bg-white overflow-hidden shadow rounded-lg">
+    <div className="bg-white overflow-hidden shadow-sm border border-slate-200 rounded-lg">
       <div className="p-5">
         <div className="flex items-center">
           <div className="flex-shrink-0">
@@ -22,9 +22,9 @@ const StatCard = ({ title, value, icon: Icon, color = 'blue' }) => {
           </div>
           <div className="ml-5 w-0 flex-1">
             <dl>
-              <dt className="text-sm font-medium text-gray-500 truncate">{title}</dt>
+              <dt className="text-sm font-medium text-ink-secondary truncate">{title}</dt>
               <dd>
-                <div className="text-lg font-medium text-gray-900">{value}</div>
+                <div className="text-lg font-bold text-ink-primary">{value}</div>
               </dd>
             </dl>
           </div>

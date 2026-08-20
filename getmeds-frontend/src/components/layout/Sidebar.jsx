@@ -3,14 +3,18 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard,
-  ShoppingCart,
-  Users,
+  PlusCircle,
   ClipboardList,
-  CheckSquare,
+  CreditCard,
+  History,
   Truck,
+  MapPin,
+  AlertTriangle,
+  Users,
   Package,
-  FlaskConical,
-  ShieldAlert
+  ShieldCheck,
+  Building2,
+  FolderClock
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -20,96 +24,133 @@ const Sidebar = () => {
 
   const role = (user.role || '').toLowerCase();
   const mainLinks = [];
-  const adminLinks = [];
+  const secondaryLinks = [];
 
   if (role === 'medrep') {
     mainLinks.push(
-      { to: '/orders/new', icon: <ShoppingCart size={20} />, label: 'New Order' },
-      { to: '/orders', icon: <ClipboardList size={20} />, label: 'My Orders' }
+      { to: '/medrep/dashboard', icon: <LayoutDashboard size={19} />, label: 'Dashboard' },
+      { to: '/orders/new', icon: <PlusCircle size={19} />, label: 'Create New Order', primaryAction: true },
+      { to: '/orders', icon: <ClipboardList size={19} />, label: 'My Orders' }
     );
   } else if (role === 'finance') {
     mainLinks.push(
-      { to: '/finance', icon: <CheckSquare size={20} />, label: 'Finance Queue' },
-      { to: '/orders', icon: <ClipboardList size={20} />, label: 'All Orders' }
+      { to: '/finance', icon: <CreditCard size={19} />, label: 'Payment Queue' },
+      { to: '/finance/history', icon: <History size={19} />, label: 'Payment History' }
+    );
+    secondaryLinks.push(
+      { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
     );
   } else if (role === 'dispatch') {
     mainLinks.push(
-      { to: '/dispatch', icon: <Truck size={20} />, label: 'Dispatch Queue' },
-      { to: '/orders', icon: <ClipboardList size={20} />, label: 'All Orders' }
+      { to: '/dispatch', icon: <Truck size={19} />, label: 'Fulfillment Queue' },
+      { to: '/dispatch/history', icon: <MapPin size={19} />, label: 'Dispatched / Tracking Log' }
     );
-  } else if (role === 'management' || role === 'admin') {
+    secondaryLinks.push(
+      { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
+    );
+  } else if (role === 'management') {
     mainLinks.push(
-      { to: '/management', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-      { to: '/orders', icon: <ClipboardList size={20} />, label: 'All Orders' }
+      { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
+      { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' }
+    );
+    secondaryLinks.push(
+      { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
+    );
+  } else if (role === 'admin') {
+    mainLinks.push(
+      { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
+      { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' },
+      { to: '/admin/users', icon: <Users size={19} />, label: 'User Management' }
+    );
+    secondaryLinks.push(
+      { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
     );
   }
 
-  // Admin exclusive navigation
-  if (role === 'admin') {
-    adminLinks.push(
-      { to: '/admin/users', icon: <Users size={20} />, label: 'Users' }
-    );
-  }
+  const roleLabelMap = {
+    medrep: 'Medical Representative',
+    finance: 'Finance & Payments',
+    dispatch: 'Logistics & Dispatch',
+    management: 'Operations Management',
+    admin: 'System Administrator',
+  };
 
   return (
-    <aside className="w-60 bg-gray-100 border-r border-gray-200 h-full flex flex-col justify-between select-none">
-      <div>
-        {/* Brand Header */}
-        <div className="h-16 flex items-center px-6 border-b border-gray-200 bg-white">
-          <Package className="text-blue-700 mr-2" size={24} />
-          <span className="text-xl font-bold text-gray-800 tracking-tight">GetMeds</span>
+    <aside className="w-64 bg-white border-r border-slate-200 h-full flex flex-col justify-between flex-shrink-0 select-none z-30">
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Brand Logo Header */}
+        <div className="h-16 flex items-center px-6 border-b border-slate-100 bg-white flex-shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-getmeds-blue/15 flex items-center justify-center text-getmeds-blue mr-3 shadow-sm">
+            <Package size={22} className="stroke-[2.2]" />
+          </div>
+          <div>
+            <span className="text-lg font-bold text-ink-primary tracking-tight leading-none block">GetMeds</span>
+            <span className="text-[10px] uppercase font-semibold text-getmeds-blue tracking-wider block mt-0.5">Enterprise Portal</span>
+          </div>
         </div>
 
-        {/* Navigation Section */}
-        <nav className="overflow-y-auto py-4 space-y-6">
-          {/* Main Workspace Links */}
+        {/* Role Identity Tag */}
+        <div className="px-6 py-3 bg-surface/70 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+          <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider">
+            Active Workspace
+          </span>
+          <span className="text-[11px] font-bold text-ink-primary capitalize bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+            {role}
+          </span>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+          {/* Main Primary Links */}
           <div>
-            <div className="px-6 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              Workspace
+            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
+              Navigation Menu
             </div>
             <ul className="space-y-1">
               {mainLinks.map((link) => (
                 <li key={link.to}>
                   <NavLink
                     to={link.to}
+                    end={link.to === '/orders' || link.to === '/finance' || link.to === '/dispatch' || link.to === '/management'}
                     className={({ isActive }) =>
-                      `flex items-center px-6 py-2.5 text-sm font-medium transition-colors ${
+                      `flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                         isActive
-                          ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700 font-semibold'
-                          : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                          ? 'bg-getmeds-blue/10 text-getmeds-blue font-semibold border-r-4 border-getmeds-blue'
+                          : link.primaryAction
+                          ? 'text-getmeds-blue bg-getmeds-blue/5 hover:bg-getmeds-blue/10 font-semibold'
+                          : 'text-ink-secondary hover:bg-surface hover:text-ink-primary'
                       }`
                     }
                   >
-                    <span className="mr-3">{link.icon}</span>
-                    {link.label}
+                    <span className={`mr-3 ${link.primaryAction ? 'text-getmeds-blue' : ''}`}>{link.icon}</span>
+                    <span className="truncate">{link.label}</span>
                   </NavLink>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Dedicated Administration Header & Links */}
-          {adminLinks.length > 0 && (
-            <div className="pt-2 border-t border-gray-200/80">
-              <div className="px-6 pb-2 text-[11px] font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1.5">
-                <ShieldAlert size={14} className="text-purple-600" />
-                Administration
+          {/* Secondary Links if applicable */}
+          {secondaryLinks.length > 0 && (
+            <div className="pt-2 border-t border-slate-100">
+              <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
+                System Records
               </div>
               <ul className="space-y-1">
-                {adminLinks.map((link) => (
+                {secondaryLinks.map((link) => (
                   <li key={link.to}>
                     <NavLink
                       to={link.to}
                       className={({ isActive }) =>
-                        `flex items-center px-6 py-2.5 text-sm font-medium transition-colors ${
+                        `flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                           isActive
-                            ? 'bg-purple-50 text-purple-800 border-r-4 border-purple-700 font-semibold'
-                            : 'text-gray-700 hover:bg-purple-50/60 hover:text-purple-900'
+                            ? 'bg-getmeds-blue/10 text-getmeds-blue font-semibold'
+                            : 'text-ink-secondary hover:bg-surface hover:text-ink-primary'
                         }`
                       }
                     >
-                      <span className="mr-3 text-purple-600">{link.icon}</span>
-                      {link.label}
+                      <span className="mr-3">{link.icon}</span>
+                      <span className="truncate">{link.label}</span>
                     </NavLink>
                   </li>
                 ))}
@@ -117,23 +158,14 @@ const Sidebar = () => {
             </div>
           )}
         </nav>
-      </div>
 
-      {/* Test Mode Footer Button */}
-      <div className="p-4 border-t border-gray-200 bg-amber-50/60">
-        <NavLink
-          to="/test-mode"
-          className={({ isActive }) =>
-            `flex items-center px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
-              isActive
-                ? 'bg-amber-200 text-amber-900 shadow-sm'
-                : 'text-amber-800 hover:bg-amber-100'
-            }`
-          }
-        >
-          <FlaskConical size={16} className="mr-2 text-amber-600" />
-          <span>Test Mode Hub</span>
-        </NavLink>
+        {/* User Role Footer Card */}
+        <div className="p-3 border-t border-slate-100 bg-surface/50 flex-shrink-0">
+          <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 text-xs">
+            <p className="font-semibold text-ink-primary truncate">{user.name}</p>
+            <p className="text-[11px] text-ink-secondary truncate">{roleLabelMap[role] || role}</p>
+          </div>
+        </div>
       </div>
     </aside>
   );

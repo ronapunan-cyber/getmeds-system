@@ -1,3 +1,5 @@
+PRAGMA foreign_keys = ON;
+
 CREATE TABLE IF NOT EXISTS roles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT UNIQUE NOT NULL,
@@ -20,7 +22,7 @@ CREATE TABLE IF NOT EXISTS customers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK(type IN ('credit','direct')),
-  credit_limit REAL DEFAULT 0,
+  credit_limit REAL DEFAULT 0 CHECK(credit_limit >= 0),
   contact_person TEXT,
   contact_number TEXT,
   address TEXT,
@@ -32,9 +34,9 @@ CREATE TABLE IF NOT EXISTS products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   sku TEXT UNIQUE NOT NULL,
-  unit_price REAL NOT NULL,
+  unit_price REAL NOT NULL CHECK(unit_price >= 0),
   unit TEXT DEFAULT 'pc',
-  stock INTEGER DEFAULT 0,
+  stock INTEGER DEFAULT 0 CHECK(stock >= 0),
   is_active INTEGER DEFAULT 1
 );
 
@@ -43,14 +45,19 @@ CREATE TABLE IF NOT EXISTS orders (
   getmeds_order_id TEXT UNIQUE NOT NULL,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   medrep_id INTEGER NOT NULL REFERENCES users(id),
-  status TEXT NOT NULL DEFAULT 'draft',
+  status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN (
+    'draft', 'submitted', 'validating', 'so_pending', 'so_created',
+    'waiting_for_payment', 'payment_verified', 'ready_for_dispatch',
+    'picking_packing', 'dispatched', 'tracking_shared', 'completed',
+    'on_hold', 'exception', 'cancelled'
+  )),
   customer_type TEXT NOT NULL CHECK(customer_type IN ('credit','direct')),
-  total_amount REAL DEFAULT 0,
+  total_amount REAL DEFAULT 0 CHECK(total_amount >= 0),
   delivery_address TEXT NOT NULL,
   delivery_notes TEXT,
   zoho_so_id TEXT,
   zoho_so_number TEXT,
-  zoho_sync_status TEXT DEFAULT 'pending',
+  zoho_sync_status TEXT DEFAULT 'pending' CHECK(zoho_sync_status IN ('pending','synced','failed','skipped')),
   exception_reason TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   submitted_at TEXT,
@@ -59,20 +66,20 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE TABLE IF NOT EXISTS order_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER NOT NULL REFERENCES orders(id),
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id INTEGER NOT NULL REFERENCES products(id),
-  quantity INTEGER NOT NULL,
-  unit_price REAL NOT NULL,
-  subtotal REAL NOT NULL
+  quantity INTEGER NOT NULL CHECK(quantity > 0),
+  unit_price REAL NOT NULL CHECK(unit_price >= 0),
+  subtotal REAL NOT NULL CHECK(subtotal >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER UNIQUE NOT NULL REFERENCES orders(id),
+  order_id INTEGER UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','verified','rejected')),
   payment_reference TEXT,
   payment_date TEXT,
-  amount REAL,
+  amount REAL CHECK(amount IS NULL OR amount >= 0),
   payment_method TEXT,
   notes TEXT,
   verified_by INTEGER REFERENCES users(id),
@@ -82,7 +89,7 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE TABLE IF NOT EXISTS dispatch_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER UNIQUE NOT NULL REFERENCES orders(id),
+  order_id INTEGER UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','picking','packing','dispatched')),
   courier TEXT,
   tracking_number TEXT,
@@ -94,7 +101,7 @@ CREATE TABLE IF NOT EXISTS dispatch_records (
 
 CREATE TABLE IF NOT EXISTS order_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER NOT NULL REFERENCES orders(id),
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL,
   old_status TEXT,
   new_status TEXT,
@@ -107,7 +114,7 @@ CREATE TABLE IF NOT EXISTS order_events (
 
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER REFERENCES orders(id),
+  order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
   recipient_id INTEGER REFERENCES users(id),
   channel TEXT NOT NULL CHECK(channel IN ('in_app','email_log','google_chat_log')),
   message TEXT NOT NULL,
@@ -115,3 +122,19 @@ CREATE TABLE IF NOT EXISTS notifications (
   is_read INTEGER DEFAULT 0,
   sent_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_orders_medrep_created ON orders(medrep_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status_submitted ON orders(status, submitted_at ASC);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
+
+CREATE INDEX IF NOT EXISTS idx_order_events_order_created ON order_events(order_id, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread ON notifications(recipient_id, channel, is_read, sent_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_products_active_name ON products(is_active, name);
+CREATE INDEX IF NOT EXISTS idx_customers_active_name ON customers(is_active, name);
