@@ -15,13 +15,27 @@ const testRoutes = require('./routes/test.routes');
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow any localhost / 127.0.0.1 port or requests without origin (like Postman / mobile)
+    if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ success: true, message: 'GetMeds API is running', timestamp: new Date().toISOString() }));
+
+const { requireAuth } = require('./middleware/auth');
+const ordersController = require('./controllers/orders.controller');
+app.get('/api/products', requireAuth, ordersController.getProducts);
+app.get('/api/customers', requireAuth, ordersController.getCustomers);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', ordersRoutes);
