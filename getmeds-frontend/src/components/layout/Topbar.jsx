@@ -12,9 +12,8 @@ import {
   Package, 
   Clock, 
   AlertTriangle, 
-  ShieldCheck, 
   Terminal,
-  ExternalLink
+  Menu
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -26,7 +25,7 @@ const roleBadgeStyles = {
   admin: 'bg-slate-900 text-white border-slate-900',
 };
 
-const Topbar = () => {
+const Topbar = ({ onToggleSidebar }) => {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const { isDebug, toggleDebug } = useDebug();
@@ -73,13 +72,25 @@ const Topbar = () => {
   const hasExceptionAlert = notifications?.some(n => !n.is_read && (n.message?.toLowerCase().includes('exception') || n.message?.toLowerCase().includes('hold')));
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-2xs z-20 flex-shrink-0">
-      {/* Left Area: Developer Toggle Switch */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-full border border-slate-200">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shadow-2xs z-20 flex-shrink-0">
+      {/* Left Area: Mobile Hamburger Button & Developer Toggle */}
+      <div className="flex items-center space-x-2 sm:space-x-3">
+        {/* Hamburger Menu Button (visible on mobile / tablet < lg) */}
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="lg:hidden p-2 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-surface focus:outline-none focus:ring-2 focus:ring-getmeds-blue transition-colors"
+          aria-label="Open sidebar navigation"
+          title="Toggle Navigation Menu"
+        >
+          <Menu size={22} />
+        </button>
+
+        {/* Developer Toggle Switch */}
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-surface px-2.5 sm:px-3 py-1.5 rounded-full border border-slate-200">
           <Terminal size={14} className={isDebug ? 'text-getmeds-blue' : 'text-ink-secondary'} />
-          <span className="text-[11px] font-semibold text-ink-secondary tracking-wider uppercase">
-            Debug Tools
+          <span className="hidden xs:inline text-[11px] font-semibold text-ink-secondary tracking-wider uppercase">
+            Debug
           </span>
           <button
             type="button"
@@ -102,17 +113,17 @@ const Topbar = () => {
         {isDebug && (
           <Link
             to="/test-mode"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors animate-in fade-in"
+            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors animate-in fade-in"
             title="Open Test Mode Hub"
           >
             <FlaskConical size={13} className="text-amber-700" />
-            <span>Test Mode Hub</span>
+            <span>Test Hub</span>
           </Link>
         )}
       </div>
 
       {/* Right Area: Notification Bell & User Identity */}
-      <div className="flex items-center space-x-4 sm:space-x-6">
+      <div className="flex items-center space-x-2 sm:space-x-4">
         {/* Notification Bell & Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <NotificationBell
@@ -122,10 +133,10 @@ const Topbar = () => {
           />
 
           {isNotificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute right-0 mt-2 w-72 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-bold text-ink-primary">System Alerts & Notifications</h4>
+                  <h4 className="text-sm font-bold text-ink-primary">Alerts & Notifications</h4>
                   {unreadCount > 0 && (
                     <span className="bg-getmeds-blue/15 text-getmeds-blue-dark text-xs px-2 py-0.5 rounded-full font-semibold">
                       {unreadCount} new
@@ -137,7 +148,7 @@ const Topbar = () => {
                     onClick={() => markAllAsRead()}
                     className="text-xs text-getmeds-blue hover:text-getmeds-blue-dark flex items-center gap-1 font-medium"
                   >
-                    <CheckCheck size={14} /> Mark all read
+                    <CheckCheck size={14} /> Mark all
                   </button>
                 )}
               </div>
@@ -187,16 +198,16 @@ const Topbar = () => {
         </div>
         
         {/* User Identity Display */}
-        <div className="flex items-center space-x-3 border-l pl-4 sm:pl-6 border-slate-200">
-          <div className="w-9 h-9 rounded-full bg-getmeds-blue/15 border border-getmeds-blue/30 flex items-center justify-center text-getmeds-blue flex-shrink-0">
-            <User size={18} />
+        <div className="flex items-center space-x-2 sm:space-x-3 border-l pl-3 sm:pl-4 border-slate-200">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-getmeds-blue/15 border border-getmeds-blue/30 flex items-center justify-center text-getmeds-blue flex-shrink-0">
+            <User size={16} />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold text-ink-primary leading-tight truncate max-w-[140px] sm:max-w-[200px]">
+            <span className="text-xs sm:text-sm font-bold text-ink-primary leading-tight truncate max-w-[100px] sm:max-w-[160px]">
               {user?.name}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${roleBadgeStyle}`}>
+              <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${roleBadgeStyle}`}>
                 {user?.role}
               </span>
             </div>
@@ -204,10 +215,10 @@ const Topbar = () => {
 
           <button 
             onClick={() => setIsLogoutDialogOpen(true)}
-            className="ml-2 p-2 text-ink-secondary hover:text-state-error rounded-full hover:bg-slate-100 transition-colors"
+            className="p-1.5 sm:p-2 text-ink-secondary hover:text-state-error rounded-full hover:bg-slate-100 transition-colors"
             title="Sign Out"
           >
-            <LogOut size={18} />
+            <LogOut size={16} />
           </button>
         </div>
       </div>
