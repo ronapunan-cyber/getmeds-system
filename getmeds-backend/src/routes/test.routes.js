@@ -16,4 +16,8 @@ router.delete('/accounts/:id', c.deleteSingleAccount);
 router.post('/accounts/cleanup', c.cleanupTestAccounts);
 router.post('/quick-login', c.quickLogin);
 
+// Demo controls for Scenario 4 (Zoho API downtime)
+router.get('/zoho/outage', c.getZohoOutage);
+router.post('/zoho/outage', c.setZohoOutage);
+
 module.exports = router;

@@ -10,8 +10,28 @@ function getDb() {
     const dbDir = path.join(__dirname, '../../data');
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     db = new Database(path.join(dbDir, 'getmeds.db'));
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+
+    // WAL mode needs proper mmap/shared-memory + file-locking support from the
+    // underlying filesystem. It fails with "SQLITE_IOERR" on some network
+    // drives, synced folders (OneDrive/Dropbox), and virtualized mounts.
+    // Fall back to the universally-compatible rollback journal if WAL isn't
+    // supported here.
+    try {
+      db.pragma('journal_mode = WAL');
+    } catch (e) {
+      console.warn('journal_mode=WAL unavailable on this filesystem, falling back to DELETE:', e.message);
+      try {
+        db.pragma('journal_mode = DELETE');
+      } catch (e2) {
+        console.warn('Note on journal_mode pragma:', e2.message);
+      }
+    }
+
+    try {
+      db.pragma('foreign_keys = ON');
+    } catch (e) {
+      console.warn('Note on foreign_keys pragma:', e.message);
+    }
 
     // Auto-migrate is_test_account column if table exists
     try {

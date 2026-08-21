@@ -1,0 +1,229 @@
+/**
+ * Coverage for the change made to orders.controller.js: the Zoho sales-order
+ * call now happens (awaited) *before* the db.transaction() in both `create`
+ * and `submit`, instead of synchronously inside it, because better-sqlite3
+ * transactions cannot contain an `await`.
+ *
+ * These tests exercise the real controller functions against the real dev
+ * SQLite database (same convention as tests/admin.test.js), using temporary
+ * customer/product rows that are cleaned up afterwards, and the default
+ * ZOHO_MODE=mock adapter (deterministic, no network).
+ *
+ * The "Zoho API downtime" cases validate the fail-safe (not fail-closed)
+ * design: if the Zoho call rejects, the order is still created/submitted
+ * and advances through the state machine normally — it is never blocked or
+ * left half-written — with zoho_sync_status='failed' and a row queued in
+ * zoho_sync_queue for automatic background retry (see zohoRetryService and
+ * tests/zohoRetryService.test.js), matching the project's QA mandate to
+ * account for Zoho API downtime explicitly without losing order data.
+ */
+const db = require('../src/db/database');
+const zoho = require('../src/integrations/zoho');
+const ordersController = require('../src/controllers/orders.controller');
+
+function makeRes() {
+  const res = {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(data) { this.body = data; return this; }
+  };
+  return res;
+}
+
+describe('orders.controller — Zoho call sequencing (create/submit)', () => {
+  let medrepId;
+  let creditCustomerId;
+  let directCustomerId;
+  let productId;
+  const createdOrderIds = [];
+
+  beforeAll(() => {
+    const medrep = db.prepare("SELECT id FROM users WHERE email = 'medrep@getmeds.ph'").get();
+    if (!medrep) throw new Error('Expected seeded medrep@getmeds.ph to exist — run `npm run setup` first.');
+    medrepId = medrep.id;
+
+    creditCustomerId = db.prepare(
+      `INSERT INTO customers (name, type, credit_limit, is_active) VALUES (?, 'credit', 100000, 1)`
+    ).run('ZOHO-TEST Credit Customer').lastInsertRowid;
+
+    directCustomerId = db.prepare(
+      `INSERT INTO customers (name, type, credit_limit, is_active) VALUES (?, 'direct', 0, 1)`
+    ).run('ZOHO-TEST Direct Customer').lastInsertRowid;
+
+    productId = db.prepare(
+      `INSERT INTO products (name, sku, unit_price, unit, stock, is_active) VALUES (?, ?, ?, 'tab', 500, 1)`
+    ).run('ZOHO-TEST Product', 'ZOHOTEST-SKU-001', 10).lastInsertRowid;
+  });
+
+  afterAll(() => {
+    // orders.id cascades to order_items/payments/dispatch_records/order_events/notifications
+    for (const id of createdOrderIds) {
+      db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    }
+    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    db.prepare('DELETE FROM customers WHERE id IN (?, ?)').run(creditCustomerId, directCustomerId);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function baseReq(overrides = {}) {
+    return {
+      user: { id: medrepId, name: 'Test MedRep', email: 'medrep@getmeds.ph', role: 'medrep' },
+      body: {
+        customer_id: directCustomerId,
+        items: [{ product_id: productId, quantity: 2 }],
+        delivery_address: '1 ZOHO-TEST St',
+        ...overrides
+      },
+      params: {}
+    };
+  }
+
+  test('draft order: never calls Zoho, and is stored with zoho_sync_status=pending', async () => {
+    const spy = jest.spyOn(zoho, 'createSalesOrder');
+    const req = baseReq({ status: 'draft' });
+    const res = makeRes();
+    const next = jest.fn();
+
+    await ordersController.create(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+
+    const order = res.body.data.order;
+    createdOrderIds.push(order.id);
+    expect(order.status).toBe('draft');
+    expect(order.zoho_sync_status).toBe('pending');
+    expect(order.zoho_so_id).toBeNull();
+  });
+
+  test('credit customer, submitted: calls Zoho, stores its SO id/number, skips the payment queue', async () => {
+    const spy = jest.spyOn(zoho, 'createSalesOrder');
+    const req = baseReq({ customer_id: creditCustomerId });
+    const res = makeRes();
+    const next = jest.fn();
+
+    await ordersController.create(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(201);
+
+    const order = res.body.data.order;
+    createdOrderIds.push(order.id);
+    expect(order.status).toBe('ready_for_dispatch');
+    expect(order.zoho_sync_status).toBe('synced');
+    expect(order.zoho_so_id).toMatch(/^MOCK-SO-\d{6}$/);
+
+    const dispatch = db.prepare('SELECT * FROM dispatch_records WHERE order_id = ?').get(order.id);
+    const payment = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(order.id);
+    expect(dispatch).toBeDefined();
+    expect(payment).toBeUndefined();
+  });
+
+  test('direct patient, submitted: calls Zoho, routes to the finance payment queue', async () => {
+    const req = baseReq(); // direct customer, no status override -> not draft
+    const res = makeRes();
+    const next = jest.fn();
+
+    await ordersController.create(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    const order = res.body.data.order;
+    createdOrderIds.push(order.id);
+    expect(order.status).toBe('waiting_for_payment');
+    expect(order.zoho_sync_status).toBe('synced');
+
+    const payment = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(order.id);
+    expect(payment).toBeDefined();
+    expect(payment.status).toBe('pending');
+  });
+
+  test('Zoho API downtime on create: order is still created (fail-safe) and queued for automatic retry', async () => {
+    jest.spyOn(zoho, 'createSalesOrder').mockRejectedValueOnce(new Error('Zoho API is down'));
+
+    const req = baseReq(); // direct customer -> would go to waiting_for_payment
+    const res = makeRes();
+    const next = jest.fn();
+
+    await ordersController.create(req, res, next);
+
+    // The request succeeds — Zoho downtime never surfaces as a failed order submission.
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+
+    const order = res.body.data.order;
+    createdOrderIds.push(order.id);
+    expect(order.status).toBe('waiting_for_payment'); // internal workflow is not gated on Zoho
+    expect(order.zoho_sync_status).toBe('failed');
+    expect(order.zoho_so_id).toBeNull();
+
+    const queued = db.prepare('SELECT * FROM zoho_sync_queue WHERE order_id = ?').get(order.id);
+    expect(queued).toBeDefined();
+    expect(queued.status).toBe('pending');
+    expect(queued.attempts).toBe(0);
+    expect(JSON.parse(queued.payload).getmeds_order_id).toBe(order.getmeds_order_id);
+
+    const events = db.prepare("SELECT * FROM order_events WHERE order_id = ? AND event_type = 'ZOHO_SYNC_FAILED'").all(order.id);
+    expect(events.length).toBe(1); // audit trail records the sync failure
+  });
+
+  test('submit: creates a draft first, then submitting it calls Zoho and updates status', async () => {
+    // Arrange: create a draft (no Zoho call involved) via the real endpoint
+    const createReq = baseReq({ customer_id: creditCustomerId, status: 'draft' });
+    const createRes = makeRes();
+    await ordersController.create(createReq, createRes, jest.fn());
+    const draftOrder = createRes.body.data.order;
+    createdOrderIds.push(draftOrder.id);
+    expect(draftOrder.status).toBe('draft');
+
+    // Act
+    const spy = jest.spyOn(zoho, 'createSalesOrder');
+    const submitReq = { user: createReq.user, params: { id: String(draftOrder.id) } };
+    const submitRes = makeRes();
+    const next = jest.fn();
+    await ordersController.submit(submitReq, submitRes, next);
+
+    // Assert
+    expect(next).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(submitRes.body.success).toBe(true);
+    expect(submitRes.body.data.order.status).toBe('ready_for_dispatch');
+    expect(submitRes.body.data.zoho.salesorder_id).toMatch(/^MOCK-SO-\d{6}$/);
+
+    const reloaded = db.prepare('SELECT * FROM orders WHERE id = ?').get(draftOrder.id);
+    expect(reloaded.zoho_sync_status).toBe('synced');
+  });
+
+  test('Zoho API downtime on submit: the draft still advances (fail-safe) and is queued for automatic retry', async () => {
+    const createReq = baseReq({ status: 'draft' });
+    const createRes = makeRes();
+    await ordersController.create(createReq, createRes, jest.fn());
+    const draftOrder = createRes.body.data.order;
+    createdOrderIds.push(draftOrder.id);
+
+    jest.spyOn(zoho, 'createSalesOrder').mockRejectedValueOnce(new Error('Zoho API is down'));
+
+    const submitReq = { user: createReq.user, params: { id: String(draftOrder.id) } };
+    const submitRes = makeRes();
+    const next = jest.fn();
+    await ordersController.submit(submitReq, submitRes, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(submitRes.body.success).toBe(true);
+    expect(submitRes.body.data.zoho).toBeNull();
+    expect(submitRes.body.data.zoho_sync_status).toBe('failed');
+
+    const reloaded = db.prepare('SELECT * FROM orders WHERE id = ?').get(draftOrder.id);
+    expect(reloaded.status).toBe('waiting_for_payment'); // advanced normally, not stuck in draft
+    expect(reloaded.zoho_sync_status).toBe('failed');
+
+    const queued = db.prepare('SELECT * FROM zoho_sync_queue WHERE order_id = ?').get(draftOrder.id);
+    expect(queued).toBeDefined();
+    expect(queued.status).toBe('pending');
+  });
+});

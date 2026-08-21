@@ -1,9 +1,104 @@
 const db = require('../db/database');
+const nodemailer = require('nodemailer');
 
 /**
  * Send a notification to one or more recipients.
- * Creates in_app DB record, logs simulated email and Google Chat payloads.
+ * Creates in_app DB record, and always logs email + Google Chat payloads to
+ * the console (this log IS the audit trail / the safe default — Test Mode,
+ * demos, and any environment without real credentials configured rely on
+ * it). When SMTP_* / GOOGLE_CHAT_WEBHOOK_URL are set, real delivery is also
+ * attempted, fire-and-forget: a delivery failure is logged but never thrown
+ * back at the caller — Google Chat/email are notification channels, never
+ * the system of record, and a flaky mail server must not break order
+ * processing.
  */
+
+// ─── Real SMTP delivery (opt-in via SMTP_HOST) ──────────────────────────────
+
+let _transporter; // undefined = not yet built, null = build failed/not configured
+
+function getTransporter() {
+  if (_transporter !== undefined) return _transporter;
+
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  if (!SMTP_HOST) {
+    _transporter = null; // not configured — console log remains the only channel
+    return _transporter;
+  }
+
+  try {
+    _transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: parseInt(SMTP_PORT, 10) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
+    });
+  } catch (err) {
+    console.error('[EMAIL] Failed to configure SMTP transporter — falling back to console-log-only:', err.message);
+    _transporter = null;
+  }
+  return _transporter;
+}
+
+async function sendRealEmail(payload) {
+  const transporter = getTransporter();
+  if (!transporter) return; // SMTP not configured; the console log above is the delivery
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"GetMeds Orders" <no-reply@getmeds.ph>',
+      to: payload.to,
+      subject: payload.subject,
+      text: payload.body,
+      html: renderEmailHtml(payload)
+    });
+  } catch (err) {
+    // Failure scenario the QA mandate calls out explicitly: SMTP downtime
+    // must never break order processing. Log it and move on.
+    console.error(`[EMAIL] Failed to send real email to ${payload.to}:`, err.message);
+  }
+}
+
+function renderEmailHtml(payload) {
+  const rows = Object.entries(payload)
+    .filter(([k]) => !['to', 'subject', 'body'].includes(k))
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `<tr><td style="padding:2px 8px;color:#667;font-size:12px;">${k}</td><td style="padding:2px 8px;font-size:12px;"><strong>${v}</strong></td></tr>`)
+    .join('');
+  return `<div style="font-family:sans-serif;font-size:14px;color:#222;">
+    <p>${payload.body}</p>
+    <table style="margin-top:12px;border-collapse:collapse;">${rows}</table>
+  </div>`;
+}
+
+// ─── Real Google Chat webhook delivery (opt-in via GOOGLE_CHAT_WEBHOOK_URL) ─
+
+async function sendRealGoogleChat(chatPayload) {
+  const url = process.env.GOOGLE_CHAT_WEBHOOK_URL;
+  if (!url) return; // not configured; the console log above is the delivery
+
+  if (typeof fetch !== 'function') {
+    console.error('[GOOGLE_CHAT] GOOGLE_CHAT_WEBHOOK_URL is set but this Node runtime has no global fetch (Node 18+ required) — skipping real delivery this time.');
+    return;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cards: chatPayload.cards })
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[GOOGLE_CHAT] Webhook responded ${res.status}: ${body.slice(0, 300)}`);
+    }
+  } catch (err) {
+    console.error('[GOOGLE_CHAT] Failed to POST webhook:', err.message);
+  }
+}
+
+// ─── notify() ────────────────────────────────────────────────────────────────
+
 function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
   const now = new Date().toISOString();
 
@@ -49,6 +144,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
     triggered_by: triggeredBy
   };
   console.log('[EMAIL_LOG]', JSON.stringify(internalEmailPayload, null, 2));
+  sendRealEmail(internalEmailPayload); // fire-and-forget; no-op if SMTP isn't configured
 
   // 2b. Customer-Facing Email Variant (Conditional on customer-relevant events)
   const customerFacingEvents = ['ORDER_SUBMITTED', 'PAYMENT_VERIFIED', 'ORDER_DISPATCHED', 'ORDER_COMPLETED'];
@@ -81,13 +177,16 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
       timestamp: now
     };
     console.log('[CUSTOMER_EMAIL_LOG]', JSON.stringify(customerEmailPayload, null, 2));
+    sendRealEmail(customerEmailPayload); // fire-and-forget; no-op if SMTP isn't configured
   }
 
-  // 3. Simulated Google Chat Log (log the full card payload structure with CTA button)
+  // 3. Google Chat (log the full card payload always; POST it for real too if configured)
 
   const chatPayload = {
     webhook_url: process.env.GOOGLE_CHAT_WEBHOOK_URL || 'NOT_CONFIGURED',
-    _note: 'This is a simulated payload. Set GOOGLE_CHAT_WEBHOOK_URL in .env to send real messages.',
+    _note: process.env.GOOGLE_CHAT_WEBHOOK_URL
+      ? 'GOOGLE_CHAT_WEBHOOK_URL is configured — this payload is also POSTed for real.'
+      : 'This is a simulated payload only. Set GOOGLE_CHAT_WEBHOOK_URL in .env to send real messages.',
     cards: [{
       header: {
         title: `GetMeds Order Update`,
@@ -123,6 +222,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
     timestamp: now
   };
   console.log('[GOOGLE_CHAT_LOG]', JSON.stringify(chatPayload));
+  sendRealGoogleChat(chatPayload); // fire-and-forget; no-op if the webhook URL isn't configured
 }
 
 /**
@@ -136,4 +236,4 @@ function getUserIdsByRole(...roles) {
   return users.map(u => u.id);
 }
 
-module.exports = { notify, getUserIdsByRole };
+module.exports = { notify, getUserIdsByRole, _sendRealEmail: sendRealEmail, _sendRealGoogleChat: sendRealGoogleChat };

@@ -179,7 +179,17 @@ const OrderForm = ({ onCancel, onSuccess }) => {
   // Step 3: Submit via React Query useMutation
   const mutation = useMutation({
     mutationFn: async () => {
-      // 1. Create Draft Payload
+      // POST /api/orders (no `status: 'draft'` override) already runs the
+      // full workflow gate in one call: it generates the GetMeds Order ID,
+      // creates the Zoho Sales Order, and sets the final status
+      // (ready_for_dispatch for credit / waiting_for_payment for direct) —
+      // see orders.controller.js `create`. A second call to
+      // POST /api/orders/:id/submit used to follow this, but `submit` only
+      // accepts orders still in `draft` status; since this order is never
+      // left in `draft`, that second call always failed with a 409 and
+      // surfaced a false "Failed to submit order" error even though the
+      // order had already been created successfully. Removed — this single
+      // call is now the complete, correct submission.
       const createRes = await client.post('/api/orders', {
         customer_id: parseInt(customerId),
         items: items.map(i => ({
@@ -191,9 +201,6 @@ const OrderForm = ({ onCancel, onSuccess }) => {
         customer_type: customerType
       });
       const order = createRes.data.data.order;
-
-      // 2. Submit to state machine workflow
-      await client.post(`/api/orders/${order.id}/submit`);
       return order;
     },
     onSuccess: (order) => {

@@ -1,5 +1,6 @@
 const db = require('../db/database');
 const bcrypt = require('bcryptjs');
+const zohoRetryService = require('../services/zohoRetryService');
 
 // Get all users with their roles
 const getAllUsers = (req, res, next) => {
@@ -81,11 +82,45 @@ const update = (req, res, next) => {
   }
 };
 
+// GET /api/admin/zoho/queue — view the Zoho sync retry outbox
+const getZohoQueue = (req, res, next) => {
+  try {
+    const queue = zohoRetryService.listQueue();
+    res.json({
+      success: true,
+      data: {
+        queue,
+        summary: {
+          pending: queue.filter((q) => q.status === 'pending').length,
+          succeeded: queue.filter((q) => q.status === 'succeeded').length,
+          failed_permanent: queue.filter((q) => q.status === 'failed_permanent').length
+        }
+      }
+    });
+  } catch (err) {
+    if (next) return next(err);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+};
+
+// POST /api/admin/zoho/queue/retry — trigger an immediate retry pass (ignores backoff window)
+const retryZohoQueue = async (req, res, next) => {
+  try {
+    const results = await zohoRetryService.processQueue({ force: true });
+    res.json({ success: true, data: { processed: results.length, results } });
+  } catch (err) {
+    if (next) return next(err);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getAll: getAllUsers,
   deactivateUser,
   create,
-  update
+  update,
+  getZohoQueue,
+  retryZohoQueue
 };
 

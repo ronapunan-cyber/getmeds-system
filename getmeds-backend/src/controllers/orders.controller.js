@@ -3,7 +3,8 @@ const stateMachine = require('../workflow/stateMachine');
 const { generateOrderId } = require('../services/orderIdService');
 const { logEvent } = require('../services/auditService');
 const { notify, getUserIdsByRole } = require('../services/notificationService');
-const { createSalesOrderMock } = require('../integrations/zoho/zohoMock');
+const zoho = require('../integrations/zoho');
+const zohoRetryService = require('../services/zohoRetryService');
 
 // ─── META ──────────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ exports.getEvents = (req, res, next) => {
 
 // ─── CREATE (DRAFT) ───────────────────────────────────────────────────────────
 
-exports.create = (req, res, next) => {
+exports.create = async (req, res, next) => {
   try {
     const { customer_id, items, delivery_address, delivery_notes, customer_type, status: requestedStatus } = req.body;
 
@@ -169,20 +170,42 @@ exports.create = (req, res, next) => {
     const finalStatus = isDraft ? 'draft' : (isCredit ? 'ready_for_dispatch' : 'waiting_for_payment');
     const now = new Date().toISOString();
 
-    const createOrderTxn = db.transaction(() => {
-      let zohoResult = null;
-      if (!isDraft) {
-        zohoResult = createSalesOrderMock({
-          getmeds_order_id: getmedsOrderId,
-          customer_name: customer.name,
-          customer_type: resolvedCustomerType,
-          customer_master_type: customer.type,
-          total_amount,
-          delivery_address,
-          items: resolvedItems
-        });
+    // 2. Create Zoho SO *before* opening the DB transaction below.
+    // better-sqlite3 transactions are synchronous and cannot contain an
+    // `await` — the Zoho call (mock, http-mock, or live, depending on
+    // ZOHO_MODE) is an async network-shaped call, so it must resolve
+    // first and hand a plain, already-resolved object into the closure.
+    //
+    // Fail-safe, not fail-closed: if Zoho is unreachable, the order is NOT
+    // rejected and NOT left half-written — it still proceeds through the
+    // internal state machine (Finance/Dispatch never wait on Zoho), with
+    // zoho_sync_status='failed' and a row queued in zoho_sync_queue for
+    // automatic background retry (see zohoRetryService). No order data is
+    // ever lost to a Zoho outage.
+    let zohoResult = null;
+    let zohoSyncStatus = 'pending';
+    let zohoError = null;
+    const zohoPayload = {
+      getmeds_order_id: getmedsOrderId,
+      customer_name: customer.name,
+      customer_type: resolvedCustomerType,
+      customer_master_type: customer.type,
+      total_amount,
+      delivery_address,
+      items: resolvedItems
+    };
+    if (!isDraft) {
+      try {
+        zohoResult = await zoho.createSalesOrder(zohoPayload);
+        zohoSyncStatus = 'synced';
+      } catch (err) {
+        zohoSyncStatus = 'failed';
+        zohoError = err.message;
+        console.error(`[ZOHO] createSalesOrder failed for ${getmedsOrderId} — order will still be created and queued for automatic retry:`, err.message);
       }
+    }
 
+    const createOrderTxn = db.transaction(() => {
       const result = db.prepare(`
         INSERT INTO orders (
           getmeds_order_id, customer_id, medrep_id, status, customer_type, total_amount,
@@ -201,7 +224,7 @@ exports.create = (req, res, next) => {
         delivery_notes || null,
         zohoResult ? zohoResult.salesorder.salesorder_id : null,
         zohoResult ? zohoResult.salesorder.salesorder_number : null,
-        zohoResult ? 'synced' : 'pending',
+        zohoSyncStatus,
         now,
         isDraft ? null : now,
         now
@@ -233,6 +256,18 @@ exports.create = (req, res, next) => {
           actorName: req.user.name,
           notes: `Order submitted for ${customer.name} (${isCredit ? 'Credit Fast-Track' : 'Direct Patient Payment Queue'})`
         });
+
+        if (zohoSyncStatus === 'failed') {
+          zohoRetryService.enqueue({ orderId, payload: zohoPayload, error: zohoError });
+          logEvent({
+            orderId,
+            eventType: 'ZOHO_SYNC_FAILED',
+            oldStatus: finalStatus,
+            newStatus: finalStatus,
+            actorName: 'System',
+            notes: `Zoho sync failed, order proceeds normally and sync is queued for automatic retry: ${zohoError}`
+          });
+        }
       } else {
         logEvent({
           orderId,
@@ -282,7 +317,7 @@ exports.create = (req, res, next) => {
 
 // ─── SUBMIT ───────────────────────────────────────────────────────────────────
 
-exports.submit = (req, res, next) => {
+exports.submit = async (req, res, next) => {
   try {
     const order = db.prepare(`
       SELECT o.*, c.name as customer_name, c.type as customer_master_type, c.contact_number, u.name as medrep_name, u.email as medrep_email
@@ -305,22 +340,41 @@ exports.submit = (req, res, next) => {
       LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?
     `).all(order.id);
 
+    // Step 1: submitted → validating → so_pending → so_created
+    const getmedsOrderId = generateOrderId();
+    const now = new Date().toISOString();
+
+    // Step 2: Create Zoho SO. Done *before* opening the DB transaction
+    // below for the same reason as in `create` above — better-sqlite3
+    // transactions can't contain an `await`, and this call is async
+    // (mock, http-mock, or live depending on ZOHO_MODE).
+    //
+    // Fail-safe, not fail-closed: a Zoho rejection here does not abort the
+    // submission or leave the order stuck in `draft` — it still advances
+    // through the state machine with zoho_sync_status='failed' and gets
+    // queued for automatic background retry (see zohoRetryService).
+    const zohoPayload = {
+      getmeds_order_id: getmedsOrderId,
+      customer_name: order.customer_name,
+      customer_type: order.customer_type,
+      customer_master_type: order.customer_master_type,
+      total_amount: order.total_amount,
+      delivery_address: order.delivery_address,
+      items
+    };
+    let zohoResult = null;
+    let zohoSyncStatus = 'pending';
+    let zohoError = null;
+    try {
+      zohoResult = await zoho.createSalesOrder(zohoPayload);
+      zohoSyncStatus = 'synced';
+    } catch (err) {
+      zohoSyncStatus = 'failed';
+      zohoError = err.message;
+      console.error(`[ZOHO] createSalesOrder failed for ${getmedsOrderId} — order will still be submitted and queued for automatic retry:`, err.message);
+    }
+
     const submitTxn = db.transaction(() => {
-      // Step 1: submitted → validating → so_pending → so_created
-      const getmedsOrderId = generateOrderId();
-      const now = new Date().toISOString();
-
-      // Step 2: Create Zoho SO (mock)
-      const zohoResult = createSalesOrderMock({
-        getmeds_order_id: getmedsOrderId,
-        customer_name: order.customer_name,
-        customer_type: order.customer_type,
-        customer_master_type: order.customer_master_type,
-        total_amount: order.total_amount,
-        delivery_address: order.delivery_address,
-        items
-      });
-
       // Step 3: Determine next status based on customer type
       // credit → ready_for_dispatch (bypasses finance payment check)
       // direct → waiting_for_payment (routes to finance queue)
@@ -330,12 +384,17 @@ exports.submit = (req, res, next) => {
       db.prepare(`
         UPDATE orders SET
           getmeds_order_id = ?, customer_type = ?, status = ?, submitted_at = ?, updated_at = ?,
-          zoho_so_id = ?, zoho_so_number = ?, zoho_sync_status = 'synced'
+          zoho_so_id = ?, zoho_so_number = ?, zoho_sync_status = ?
         WHERE id = ?
       `).run(getmedsOrderId, isCredit ? 'credit' : 'direct', finalStatus, now, now,
-        zohoResult.salesorder.salesorder_id,
-        zohoResult.salesorder.salesorder_number,
+        zohoResult ? zohoResult.salesorder.salesorder_id : null,
+        zohoResult ? zohoResult.salesorder.salesorder_number : null,
+        zohoSyncStatus,
         order.id);
+
+      if (zohoSyncStatus === 'failed') {
+        zohoRetryService.enqueue({ orderId: order.id, payload: zohoPayload, error: zohoError });
+      }
 
       // Step 4: If direct patient, create payment record for Finance queue
       if (!isCredit) {
@@ -361,7 +420,9 @@ exports.submit = (req, res, next) => {
       let prev = 'draft';
       for (const s of statusPath) {
         logEvent({ orderId: order.id, eventType: 'STATUS_CHANGE', oldStatus: prev, newStatus: s, actorId: req.user.id, actorName: req.user.name,
-          notes: s === 'so_created' ? `Zoho SO created: ${zohoResult.salesorder.salesorder_number}` : undefined });
+          notes: s === 'so_created'
+            ? (zohoResult ? `Zoho SO created: ${zohoResult.salesorder.salesorder_number}` : `Zoho sync failed, queued for automatic retry: ${zohoError}`)
+            : undefined });
         prev = s;
       }
 
@@ -386,12 +447,19 @@ exports.submit = (req, res, next) => {
         notify({ orderId: order.id, recipientIds: dispatchIds, message: `New credit order ${getmedsOrderId} is ready for dispatch.`, eventType: 'ORDER_READY_FOR_DISPATCH', orderData: orderDataForNotif });
       }
 
-      return { getmedsOrderId, finalStatus, zohoResult };
+      return { getmedsOrderId, finalStatus, zohoResult, zohoSyncStatus };
     });
 
     const result = submitTxn();
     const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
-    res.json({ success: true, data: { order: updatedOrder, zoho: result.zohoResult.salesorder } });
+    res.json({
+      success: true,
+      data: {
+        order: updatedOrder,
+        zoho: result.zohoResult ? result.zohoResult.salesorder : null,
+        zoho_sync_status: result.zohoSyncStatus
+      }
+    });
   } catch (err) { next(err); }
 };
 

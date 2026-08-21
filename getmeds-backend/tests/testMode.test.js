@@ -205,5 +205,25 @@ describe('Test Mode Security & Controller', () => {
         })
       );
     });
+
+    test('setZohoOutage/getZohoOutage: toggles the mock Zoho outage flag for demoing Scenario 4', () => {
+      const zoho = require('../src/integrations/zoho');
+
+      let responseData = null;
+      const res = { json: jest.fn((data) => { responseData = data; }) };
+      testController.setZohoOutage({ body: { enabled: true } }, res, (err) => { throw err; });
+      expect(responseData.success).toBe(true);
+      expect(responseData.data.simulatedOutage).toBe(true);
+      expect(zoho.isSimulatedOutage()).toBe(true);
+
+      const res2 = { json: jest.fn((data) => { responseData = data; }) };
+      testController.getZohoOutage({}, res2, (err) => { throw err; });
+      expect(responseData.data.simulatedOutage).toBe(true);
+
+      const res3 = { json: jest.fn((data) => { responseData = data; }) };
+      testController.setZohoOutage({ body: { enabled: false } }, res3, (err) => { throw err; });
+      expect(responseData.data.simulatedOutage).toBe(false);
+      expect(zoho.isSimulatedOutage()).toBe(false);
+    });
   });
 });

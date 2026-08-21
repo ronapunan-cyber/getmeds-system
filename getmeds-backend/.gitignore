@@ -1,4 +1,4 @@
 node_modules/
 .env
-getmeds.db
+data/
 coverage/

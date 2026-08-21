@@ -5,7 +5,11 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  // sessionStorage, not localStorage: each browser tab gets its own isolated
+  // token, so several tabs (one per role, e.g. for a live demo) can each stay
+  // logged in as a different user at the same time instead of sharing one
+  // login across every tab of the browser.
+  const [token, setToken] = useState(sessionStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await client.post('/api/auth/login', { email, password });
     if (data.success) {
       const { token: newToken, user: userData } = data.data;
-      localStorage.setItem('token', newToken);
+      sessionStorage.setItem('token', newToken);
       setToken(newToken);
       setUser(userData);
       return userData;
@@ -43,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await client.post('/api/test/quick-login', { email });
     if (data.success) {
       const { token: newToken, user: userData } = data.data;
-      localStorage.setItem('token', newToken);
+      sessionStorage.setItem('token', newToken);
       setToken(newToken);
       setUser(userData);
       return userData;
@@ -52,7 +56,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     setToken(null);
     setUser(null);
   };

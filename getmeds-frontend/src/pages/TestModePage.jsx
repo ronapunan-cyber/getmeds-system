@@ -5,21 +5,24 @@ import ErrorMessage from '../components/ui/ErrorMessage';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  FlaskConical, 
-  UserPlus, 
-  Trash2, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  Copy, 
-  Check, 
-  ShieldAlert, 
+import {
+  FlaskConical,
+  UserPlus,
+  Trash2,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Copy,
+  Check,
+  ShieldAlert,
   ArrowRight,
   Eye,
   EyeOff,
   Users,
-  KeyRound
+  KeyRound,
+  WifiOff,
+  Wifi,
+  Send
 } from 'lucide-react';
 
 const roleBadgeColors = {
@@ -61,6 +64,15 @@ const TestModePage = () => {
   const [copiedKey, setCopiedKey] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  // Zoho outage simulation + retry queue (Scenario 4 demo controls)
+  const [zohoOutage, setZohoOutage] = useState(false);
+  const [zohoOutageLoading, setZohoOutageLoading] = useState(false);
+  const [zohoQueue, setZohoQueue] = useState([]);
+  const [zohoSummary, setZohoSummary] = useState({ pending: 0, succeeded: 0, failed_permanent: 0 });
+  const [zohoQueueLoading, setZohoQueueLoading] = useState(false);
+  const [zohoRetryLoading, setZohoRetryLoading] = useState(false);
+  const [zohoAdminAccessDenied, setZohoAdminAccessDenied] = useState(false);
+
   // Check backend test mode status
   const checkStatus = async () => {
     setStatusLoading(true);
@@ -73,6 +85,8 @@ const TestModePage = () => {
         setServerDebug(res.data.data.debug);
         if (res.data.data.testMode) {
           fetchExistingAccounts();
+          fetchZohoOutageStatus();
+          fetchZohoQueue();
         }
       }
     } catch (err) {
@@ -165,6 +179,89 @@ const TestModePage = () => {
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to delete test account');
+    }
+  };
+
+  // ── Zoho outage simulation + retry queue (Scenario 4 demo controls) ──────
+
+  const fetchZohoOutageStatus = async () => {
+    try {
+      const res = await client.get('/api/test/zoho/outage');
+      if (res.data?.success) setZohoOutage(res.data.data.simulatedOutage);
+    } catch (err) {
+      console.error('Failed to fetch Zoho outage status:', err);
+    }
+  };
+
+  const fetchZohoQueue = async () => {
+    setZohoQueueLoading(true);
+    try {
+      // This endpoint is intentionally admin-only (RBAC), but this page is
+      // reachable without logging in — pass skipAuthRedirect so a 401 here
+      // degrades to the "admin login required" notice below instead of
+      // bouncing the whole app back to "/" via the global axios interceptor.
+      const res = await client.get('/api/admin/zoho/queue', { skipAuthRedirect: true });
+      if (res.data?.success) {
+        setZohoQueue(res.data.data.queue || []);
+        setZohoSummary(res.data.data.summary || { pending: 0, succeeded: 0, failed_permanent: 0 });
+        setZohoAdminAccessDenied(false);
+      }
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        setZohoAdminAccessDenied(true);
+        setZohoQueue([]);
+        setZohoSummary({ pending: 0, succeeded: 0, failed_permanent: 0 });
+      } else {
+        console.error('Failed to fetch Zoho sync queue:', err);
+      }
+    } finally {
+      setZohoQueueLoading(false);
+    }
+  };
+
+  const handleToggleZohoOutage = async () => {
+    setZohoOutageLoading(true);
+    setError(null);
+    try {
+      const res = await client.post('/api/test/zoho/outage', { enabled: !zohoOutage });
+      if (res.data?.success) {
+        setZohoOutage(res.data.data.simulatedOutage);
+        setSuccessMessage(
+          res.data.data.simulatedOutage
+            ? '🔌 Simulated Zoho outage ENABLED — the next order submission will succeed normally, but its Zoho sync will fail and be queued for automatic retry.'
+            : 'Simulated Zoho outage disabled — Zoho sync will succeed again.'
+        );
+      }
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to toggle simulated Zoho outage');
+    } finally {
+      setZohoOutageLoading(false);
+    }
+  };
+
+  const handleRetryZohoQueue = async () => {
+    setZohoRetryLoading(true);
+    setError(null);
+    try {
+      const res = await client.post('/api/admin/zoho/queue/retry', undefined, { skipAuthRedirect: true });
+      if (res.data?.success) {
+        const { processed, results } = res.data.data;
+        const succeeded = results.filter((r) => r.outcome === 'succeeded').length;
+        setSuccessMessage(`Zoho retry pass complete: ${processed} order(s) checked, ${succeeded} synced successfully.`);
+        setZohoAdminAccessDenied(false);
+        fetchZohoQueue();
+      }
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        setZohoAdminAccessDenied(true);
+        setError('Admin login required to trigger a Zoho retry pass.');
+      } else {
+        setError(err.response?.data?.error?.message || 'Failed to trigger Zoho retry queue');
+      }
+    } finally {
+      setZohoRetryLoading(false);
     }
   };
 
@@ -462,6 +559,99 @@ const TestModePage = () => {
                   <>
                     <Trash2 size={14} className="mr-1.5" />
                     Delete All Test Accounts ({existingAccounts.length})
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Zoho Outage Simulation + Retry Queue Card (Scenario 4 demo controls) */}
+            <div className={`bg-white rounded-xl shadow-sm border p-6 ${zohoOutage ? 'border-amber-300' : 'border-gray-100'}`}>
+              <div className={`flex items-center space-x-2 mb-2 ${zohoOutage ? 'text-amber-700' : 'text-gray-700'}`}>
+                {zohoOutage ? <WifiOff size={18} /> : <Wifi size={18} />}
+                <h3 className="text-sm font-bold">Zoho Integration Health</h3>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                Simulate a Zoho API outage to demo Scenario 4: the order still submits and advances normally, but its Zoho sync fails and is queued here for automatic background retry (with exponential backoff, up to {' '}
+                <code className="text-gray-700 font-mono">ZOHO_RETRY_MAX_ATTEMPTS</code> attempts before it's flagged for manual follow-up).
+              </p>
+
+              <button
+                type="button"
+                onClick={handleToggleZohoOutage}
+                disabled={zohoOutageLoading}
+                className={`w-full inline-flex items-center justify-center px-4 py-2 border text-xs font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-40 mb-3 ${
+                  zohoOutage
+                    ? 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 focus:ring-amber-500'
+                    : 'border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 focus:ring-gray-400'
+                }`}
+              >
+                {zohoOutageLoading ? (
+                  <LoadingSpinner size="sm" className="mr-2" />
+                ) : zohoOutage ? (
+                  <WifiOff size={14} className="mr-1.5" />
+                ) : (
+                  <Wifi size={14} className="mr-1.5" />
+                )}
+                {zohoOutage ? 'Simulated Outage: ON — click to restore' : 'Simulate Zoho Outage'}
+              </button>
+
+              {zohoAdminAccessDenied ? (
+                <div className="flex items-center justify-between text-xs bg-gray-50 border border-gray-200 rounded-md px-3 py-2 mb-3">
+                  <span className="text-gray-500">
+                    Log in as an <strong className="text-gray-700">admin</strong> account to view and retry the sync queue.
+                  </span>
+                  <button type="button" onClick={fetchZohoQueue} disabled={zohoQueueLoading} className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0">
+                    <RefreshCw size={14} className={zohoQueueLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                  <span>
+                    Queue: <strong className="text-gray-700">{zohoSummary.pending}</strong> pending ·{' '}
+                    <strong className="text-pharmacy-green-dark">{zohoSummary.succeeded}</strong> synced ·{' '}
+                    <strong className="text-red-700">{zohoSummary.failed_permanent}</strong> failed permanently
+                  </span>
+                  <button type="button" onClick={fetchZohoQueue} disabled={zohoQueueLoading} className="text-gray-400 hover:text-gray-600">
+                    <RefreshCw size={14} className={zohoQueueLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              )}
+
+              {!zohoAdminAccessDenied && zohoQueue.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-gray-100 rounded-md mb-3">
+                  <table className="min-w-full text-[11px]">
+                    <tbody className="divide-y divide-gray-100">
+                      {zohoQueue.slice(0, 8).map((q) => (
+                        <tr key={q.id}>
+                          <td className="px-2 py-1.5 font-mono text-gray-700">{q.getmeds_order_id || `order #${q.order_id}`}</td>
+                          <td className="px-2 py-1.5 text-gray-500">attempt {q.attempts}</td>
+                          <td className={`px-2 py-1.5 font-semibold ${
+                            q.status === 'succeeded' ? 'text-pharmacy-green-dark' : q.status === 'failed_permanent' ? 'text-red-700' : 'text-amber-700'
+                          }`}>
+                            {q.status}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleRetryZohoQueue}
+                disabled={zohoRetryLoading || zohoAdminAccessDenied || zohoSummary.pending === 0}
+                className="w-full inline-flex items-center justify-center px-4 py-2 border border-getmeds-blue/30 text-xs font-semibold rounded-md text-getmeds-blue-dark bg-getmeds-blue/10 hover:bg-getmeds-blue/15 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-getmeds-blue disabled:opacity-40"
+              >
+                {zohoRetryLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} className="mr-1.5" />
+                    Retry Zoho Sync Queue Now ({zohoSummary.pending})
                   </>
                 )}
               </button>

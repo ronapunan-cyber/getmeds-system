@@ -123,6 +123,23 @@ CREATE TABLE IF NOT EXISTS notifications (
   sent_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Zoho outbox: when a Zoho Sales Order call fails (API downtime, timeout,
+-- etc.), the order itself is never blocked or left half-written — it still
+-- proceeds through the internal state machine with zoho_sync_status='failed'
+-- — and a row is queued here so a background job can retry automatically
+-- without the MedRep losing any order data or re-entering anything.
+CREATE TABLE IF NOT EXISTS zoho_sync_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','succeeded','failed_permanent')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Indexes for performance optimization
 CREATE INDEX IF NOT EXISTS idx_orders_medrep_created ON orders(medrep_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status_submitted ON orders(status, submitted_at ASC);
@@ -138,3 +155,6 @@ CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread ON notifications(r
 
 CREATE INDEX IF NOT EXISTS idx_products_active_name ON products(is_active, name);
 CREATE INDEX IF NOT EXISTS idx_customers_active_name ON customers(is_active, name);
+
+CREATE INDEX IF NOT EXISTS idx_zoho_sync_queue_pending ON zoho_sync_queue(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_zoho_sync_queue_order ON zoho_sync_queue(order_id);

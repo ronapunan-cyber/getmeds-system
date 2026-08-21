@@ -1,4 +1,19 @@
 /**
+ * ⚠️ SUPERSEDED — kept as-is (still used by orders.controller.js today, so
+ * nothing here changes behavior), but new work should go through the
+ * adapter in ./index.js instead:
+ *
+ *   const zoho = require('../integrations/zoho');
+ *   await zoho.createSalesOrder(orderData);
+ *
+ * See MockZohoAdapter.js / LiveZohoAdapter.js / ZohoAdapter.js for the
+ * safer, mode-switchable (mock / http-mock / live), schema-accurate
+ * replacement, and SAFE_ZOHO_TESTING.md for how the safety model works.
+ * This file is left untouched below so existing call sites keep working
+ * until orders.controller.js is deliberately migrated.
+ */
+
+/**
  * Zoho Mock Integration
  * Mirrors the real Zoho Books API shape for POST /salesorders.
  * In production, set ZOHO_CLIENT_ID etc in .env to use the real API.

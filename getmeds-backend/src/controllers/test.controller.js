@@ -2,6 +2,7 @@ const db = require('../db/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { isTestModeEnabled } = require('../middleware/testMode');
+const zoho = require('../integrations/zoho');
 
 const SECRET = process.env.JWT_SECRET || 'getmeds_secret_change_in_production';
 const VALID_ROLES = ['medrep', 'finance', 'dispatch', 'management', 'admin'];
@@ -310,6 +311,37 @@ exports.quickLogin = (req, res, next) => {
         user: { id: user.id, name: user.name, email: user.email, role: user.role }
       }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/test/zoho/outage
+ * Demo control: flip a simulated Zoho outage on/off (mock mode only — a
+ * no-op against LiveZohoAdapter). Lets Aaron demo Scenario 4 live: enable
+ * the outage, submit an order (it still succeeds with zoho_sync_status
+ * 'failed' and gets queued), disable the outage, then trigger a retry pass
+ * via POST /api/admin/zoho/queue/retry and watch it sync.
+ */
+exports.setZohoOutage = (req, res, next) => {
+  try {
+    const enabled = !!req.body.enabled;
+    zoho.setSimulatedOutage(enabled);
+    console.log(`🧪 [TEST_MODE] Zoho simulated outage set to: ${enabled}`);
+    res.json({ success: true, data: { simulatedOutage: zoho.isSimulatedOutage() } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/test/zoho/outage
+ * Check current simulated-outage state.
+ */
+exports.getZohoOutage = (req, res, next) => {
+  try {
+    res.json({ success: true, data: { simulatedOutage: zoho.isSimulatedOutage() } });
   } catch (err) {
     next(err);
   }

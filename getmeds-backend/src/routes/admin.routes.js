@@ -19,5 +19,9 @@ router.patch('/users/:id', adminController.update);
 // Route to deactivate a user (Soft Delete): PATCH /api/admin/users/:id/deactivate
 router.patch('/users/:id/deactivate', adminController.deactivateUser);
 
+// Zoho sync retry outbox: view queued/failed syncs, or trigger an immediate retry pass
+router.get('/zoho/queue', adminController.getZohoQueue);
+router.post('/zoho/queue/retry', adminController.retryZohoQueue);
+
 module.exports = router;
 
