@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useDebug } from './context/DebugContext';
 import Layout from './components/layout/Layout';
 
 // Pages
@@ -21,13 +22,19 @@ import TestModePage from './pages/TestModePage';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
+  const { isDebug } = useDebug();
   
   if (!user) {
     return <Navigate to="/" replace />;
   }
   
+  // In Debug / Test Mode, allow access to all transaction pages
+  if (isDebug) {
+    return children;
+  }
+  
   const role = (user.role || '').toLowerCase();
-  const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+  const normalizedAllowedRoles = allowedRoles ? allowedRoles.map(r => r.toLowerCase()) : [];
 
   if (allowedRoles && !normalizedAllowedRoles.includes(role)) {
     return <Navigate to="/dashboard" replace />;
@@ -43,9 +50,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/test-mode" element={<TestModePage />} />
         
         <Route element={<Layout />}>
+          <Route path="/test-mode" element={<TestModePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           
           {/* MedRep Routes */}
