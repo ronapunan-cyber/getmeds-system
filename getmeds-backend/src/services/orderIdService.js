@@ -1,7 +1,7 @@
 const db = require('../db/database');
 
 /**
- * Generates a unique GetMeds Order ID in format GM-YYYYMMDD-XXXX
+ * Generates a unique Getmeds Order ID in format GM-YYYYMMDD-XXXX
  * Uses DB sequence for the day to ensure uniqueness.
  */
 function generateOrderId() {

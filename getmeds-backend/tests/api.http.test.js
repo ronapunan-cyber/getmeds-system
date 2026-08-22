@@ -100,6 +100,21 @@ describe('HTTP API — full scenario walk-throughs', () => {
   let medrepToken, financeToken, dispatchToken, managementToken;
 
   beforeAll(async () => {
+    // Clean up any leftovers from previous failed test runs
+    const staleOrders = db.prepare(`
+      SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE 'HTTP-TEST%')
+    `).all();
+    for (const o of staleOrders) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM orders WHERE id = ?').run(o.id);
+    }
+    db.prepare(`DELETE FROM products WHERE sku = 'HTTPTEST-SKU-001'`).run();
+    db.prepare(`DELETE FROM customers WHERE name LIKE 'HTTP-TEST%'`).run();
+
     creditCustomerId = db.prepare(
       `INSERT INTO customers (name, type, credit_limit, is_active) VALUES (?, 'credit', 100000, 1)`
     ).run('HTTP-TEST Credit Customer').lastInsertRowid;
@@ -118,10 +133,17 @@ describe('HTTP API — full scenario walk-throughs', () => {
 
   afterAll(() => {
     for (const id of createdOrderIds) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
       db.prepare('DELETE FROM orders WHERE id = ?').run(id);
     }
-    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
-    db.prepare('DELETE FROM customers WHERE id IN (?, ?)').run(creditCustomerId, directCustomerId);
+    if (productId) db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    if (creditCustomerId && directCustomerId) {
+      db.prepare('DELETE FROM customers WHERE id IN (?, ?)').run(creditCustomerId, directCustomerId);
+    }
   });
 
   test('Scenario 1 (Fast-Track credit): MedRep submits -> Ready for Dispatch -> Dispatch fulfils -> Completed with tracking', async () => {
@@ -138,7 +160,7 @@ describe('HTTP API — full scenario walk-throughs', () => {
     const order = createRes.body.data.order;
     createdOrderIds.push(order.id);
 
-    // 2. System auto-generates a unique GetMeds Order ID and skips Waiting for Payment
+    // 2. System auto-generates a unique Getmeds Order ID and skips Waiting for Payment
     expect(order.getmeds_order_id).toMatch(/^GM-\d{8}-\d{4}$/);
     expect(order.status).toBe('ready_for_dispatch');
     expect(order.zoho_sync_status).toBe('synced');

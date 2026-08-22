@@ -10,6 +10,7 @@ const dispatchRoutes = require('./routes/dispatch.routes');
 const managementRoutes = require('./routes/management.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const adminRoutes = require('./routes/admin.routes');
+const inventoryRoutes = require('./routes/inventory.routes');
 const testRoutes = require('./routes/test.routes');
 
 const app = express();
@@ -30,7 +31,7 @@ app.use(cors({
 app.use(express.json());
 
 // Health check
-app.get('/api/health', (req, res) => res.json({ success: true, message: 'GetMeds API is running', timestamp: new Date().toISOString() }));
+app.get('/api/health', (req, res) => res.json({ success: true, message: 'Getmeds API is running', timestamp: new Date().toISOString() }));
 
 const { requireAuth } = require('./middleware/auth');
 const ordersController = require('./controllers/orders.controller');
@@ -44,6 +45,7 @@ app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/management', managementRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/inventory', inventoryRoutes);
 app.use('/api/test', testRoutes);
 
 // 404 handler

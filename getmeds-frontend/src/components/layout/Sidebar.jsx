@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebug } from '../../context/DebugContext';
+import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard,
@@ -19,20 +20,25 @@ import {
   BarChart3,
   Shield,
   Sparkles,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 
-const QUICK_ROLES = [
-  { role: 'medrep', label: 'MedRep', email: 'medrep@getmeds.ph', badge: 'bg-getmeds-blue/15 text-getmeds-blue-dark' },
-  { role: 'finance', label: 'Finance', email: 'finance@getmeds.ph', badge: 'bg-pharmacy-green/15 text-pharmacy-green-dark' },
-  { role: 'dispatch', label: 'Dispatch', email: 'dispatch@getmeds.ph', badge: 'bg-indigo-100 text-indigo-800' },
-  { role: 'management', label: 'Manager', email: 'manager@getmeds.ph', badge: 'bg-purple-100 text-purple-800' },
-  { role: 'admin', label: 'Admin', email: 'admin@getmeds.ph', badge: 'bg-slate-900 text-white' },
+const QUICK_ROLES_ROW_1 = [
+  { role: 'medrep', label: 'MedRep', email: 'medrep@getmeds.ph', icon: '🩺', activeClass: 'bg-blue-600 text-white border-blue-700 shadow-sm' },
+  { role: 'finance', label: 'Finance', email: 'finance@getmeds.ph', icon: '💳', activeClass: 'bg-emerald-600 text-white border-emerald-700 shadow-sm' },
+  { role: 'dispatch', label: 'Dispatch', email: 'dispatch@getmeds.ph', icon: '🚚', activeClass: 'bg-indigo-600 text-white border-indigo-700 shadow-sm' },
+];
+
+const QUICK_ROLES_ROW_2 = [
+  { role: 'management', label: 'Manager', email: 'manager@getmeds.ph', icon: '📊', activeClass: 'bg-purple-600 text-white border-purple-700 shadow-sm' },
+  { role: 'admin', label: 'Admin', email: 'admin@getmeds.ph', icon: '🛡️', activeClass: 'bg-slate-900 text-white border-slate-950 shadow-sm' },
 ];
 
 const Sidebar = ({ isOpen = false, onClose }) => {
   const { user, quickLogin } = useAuth();
   const { isDebug } = useDebug();
+  const qc = useQueryClient();
 
   if (!user) return null;
 
@@ -44,12 +50,13 @@ const Sidebar = ({ isOpen = false, onClose }) => {
     }
   };
 
-  const handleQuickSwitch = async (email, roleName) => {
-    if (user?.email === email) return;
+  const handleQuickSwitch = async (email, roleName, roleKey) => {
+    if (user?.role?.toLowerCase() === roleKey && user?.email === email) return;
     try {
       if (quickLogin) {
-        await quickLogin(email);
-        toast.success(`Switched active workspace to ${roleName}`, {
+        await quickLogin({ email, role: roleKey });
+        qc.invalidateQueries();
+        toast.success(`Switched identity to ${roleName}`, {
           icon: '⚡',
           duration: 2500,
         });
@@ -111,6 +118,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       badge: 'Admin',
       badgeClass: 'bg-slate-900 text-white',
       links: [
+        { to: '/inventory', icon: <Package size={18} />, label: 'Zoho Inventory Sync' },
         { to: '/admin/users', icon: <Users size={18} />, label: 'User Management' },
         { to: '/test-mode', icon: <FlaskConical size={18} />, label: 'Test Mode Hub' }
       ]
@@ -138,7 +146,8 @@ const Sidebar = ({ isOpen = false, onClose }) => {
   } else if (role === 'dispatch') {
     mainLinks.push(
       { to: '/dispatch', icon: <Truck size={19} />, label: 'Fulfillment Queue' },
-      { to: '/dispatch/history', icon: <MapPin size={19} />, label: 'Dispatched / Tracking Log' }
+      { to: '/dispatch/history', icon: <MapPin size={19} />, label: 'Dispatched / Tracking Log' },
+      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' }
     );
     secondaryLinks.push(
       { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
@@ -146,7 +155,8 @@ const Sidebar = ({ isOpen = false, onClose }) => {
   } else if (role === 'management') {
     mainLinks.push(
       { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
-      { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' }
+      { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' },
+      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' }
     );
     secondaryLinks.push(
       { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
@@ -155,6 +165,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
     mainLinks.push(
       { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
       { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' },
+      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' },
       { to: '/admin/users', icon: <Users size={19} />, label: 'User Management' }
     );
     secondaryLinks.push(
@@ -187,7 +198,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
                 <Package size={22} className="stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-lg font-bold text-ink-primary tracking-tight leading-none block">GetMeds</span>
+                <span className="text-lg font-bold text-ink-primary tracking-tight leading-none block">Getmeds</span>
                 <span className="text-[10px] uppercase font-semibold text-getmeds-blue tracking-wider block mt-0.5">Enterprise Portal</span>
               </div>
             </div>
@@ -223,28 +234,55 @@ const Sidebar = ({ isOpen = false, onClose }) => {
 
             {/* 1-Click Quick Role Switcher in Test Mode */}
             {isDebug && (
-              <div className="pt-1 border-t border-slate-200/60">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-semibold text-ink-secondary uppercase tracking-wider">
+              <div className="pt-2 border-t border-slate-200/60">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1">
+                    <Zap size={11} className="text-amber-500" />
                     Quick Switch Identity
                   </span>
                 </div>
-                <div className="grid grid-cols-5 gap-1">
-                  {QUICK_ROLES.map((r) => {
+                
+                {/* Row 1: MedRep, Finance, Dispatch (3 Columns) */}
+                <div className="grid grid-cols-3 gap-1 mb-1">
+                  {QUICK_ROLES_ROW_1.map((r) => {
                     const isCurrent = (user.role || '').toLowerCase() === r.role;
                     return (
                       <button
                         key={r.role}
                         type="button"
-                        onClick={() => handleQuickSwitch(r.email, r.label)}
-                        className={`text-[10px] font-bold py-1 px-0.5 rounded text-center transition-all border ${
+                        onClick={() => handleQuickSwitch(r.email, r.label, r.role)}
+                        className={`text-[10.5px] font-bold py-1.5 px-1 rounded-md text-center transition-all border flex items-center justify-center gap-1 ${
                           isCurrent
-                            ? `${r.badge} border-slate-400 font-extrabold shadow-2xs scale-105`
-                            : 'bg-white text-ink-secondary border-slate-200 hover:bg-slate-100 hover:text-ink-primary'
+                            ? `${r.activeClass} ring-1 ring-offset-1 ring-slate-400 font-extrabold`
+                            : 'bg-white text-ink-secondary border-slate-200 hover:bg-slate-50 hover:text-ink-primary hover:border-slate-300'
                         }`}
                         title={`Switch active user to ${r.label} (${r.email})`}
                       >
-                        {r.label}
+                        <span className="text-xs">{r.icon}</span>
+                        <span>{r.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Row 2: Manager, Admin (2 Columns) */}
+                <div className="grid grid-cols-2 gap-1">
+                  {QUICK_ROLES_ROW_2.map((r) => {
+                    const isCurrent = (user.role || '').toLowerCase() === r.role;
+                    return (
+                      <button
+                        key={r.role}
+                        type="button"
+                        onClick={() => handleQuickSwitch(r.email, r.label, r.role)}
+                        className={`text-[10.5px] font-bold py-1.5 px-1.5 rounded-md text-center transition-all border flex items-center justify-center gap-1.5 ${
+                          isCurrent
+                            ? `${r.activeClass} ring-1 ring-offset-1 ring-slate-400 font-extrabold`
+                            : 'bg-white text-ink-secondary border-slate-200 hover:bg-slate-50 hover:text-ink-primary hover:border-slate-300'
+                        }`}
+                        title={`Switch active user to ${r.label} (${r.email})`}
+                      >
+                        <span className="text-xs">{r.icon}</span>
+                        <span>{r.label}</span>
                       </button>
                     );
                   })}

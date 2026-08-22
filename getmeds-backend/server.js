@@ -8,7 +8,7 @@ app.listen(PORT, () => {
   const isTestMode = process.env.TEST_MODE === 'true' && process.env.NODE_ENV !== 'production';
   const isDebug = process.env.DEBUG === 'true';
 
-  console.log(`\n🚀 GetMeds API Server running on http://localhost:${PORT}`);
+  console.log(`\n🚀 Getmeds API Server running on http://localhost:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Debug Mode: ${isDebug ? 'ENABLED' : 'disabled'}`);

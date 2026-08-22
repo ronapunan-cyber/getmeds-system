@@ -103,7 +103,7 @@ class MockZohoAdapter extends ZohoAdapter {
         item_total: item.subtotal
       })),
       custom_fields: [
-        { label: 'GetMeds Customer Type', value: customerTypeLabel },
+        { label: 'Getmeds Customer Type', value: customerTypeLabel },
         { label: 'Payment Status', value: paymentStatusLabel }
       ],
       created_time: new Date().toISOString(),
@@ -132,6 +132,91 @@ class MockZohoAdapter extends ZohoAdapter {
 
   async listItems() {
     return { code: 0, message: 'success', items: [...this._items.values()] };
+  }
+
+  async createItem(itemData) {
+    const itemId = `MOCK-ITEM-${itemData.sku || this._items.size + 1}`;
+    const item = {
+      item_id: itemId,
+      name: itemData.name,
+      sku: itemData.sku,
+      rate: itemData.rate ?? itemData.unit_price ?? 0,
+      stock_on_hand: itemData.initial_stock ?? itemData.stock ?? 0,
+      unit: itemData.unit || 'pc',
+      status: 'active',
+      _mock: true
+    };
+    this._items.set(itemId, item);
+    this._log('[ZOHO_MOCK] Created item:', itemId, item.name);
+    return { code: 0, message: 'Item created successfully [MOCK MODE]', item };
+  }
+
+  async findOrCreateItem(productData) {
+    const existing = [...this._items.values()].find(
+      (i) => (productData.sku && i.sku === productData.sku) || i.name === productData.name
+    );
+    if (existing) {
+      return { code: 0, message: 'success', item: existing };
+    }
+    return this.createItem(productData);
+  }
+
+  async adjustStock({ itemId, sku, quantityAdjusted, reason = 'Mock adjustment' }) {
+    let item = itemId ? this._items.get(itemId) : null;
+    if (!item && sku) {
+      item = [...this._items.values()].find((i) => i.sku === sku);
+    }
+    if (!item) {
+      throw new Error(`[ZOHO_MOCK] Item not found for adjustStock (itemId=${itemId}, sku=${sku})`);
+    }
+
+    item.stock_on_hand = Math.max(0, (item.stock_on_hand || 0) + quantityAdjusted);
+    this._log(`[ZOHO_MOCK] Adjusted stock for ${item.sku}: delta=${quantityAdjusted}, new stock=${item.stock_on_hand}`);
+    return {
+      code: 0,
+      message: 'Inventory adjusted successfully [MOCK MODE]',
+      inventory_adjustment: {
+        inventory_adjustment_id: `MOCK-ADJ-${Date.now()}`,
+        reason,
+        quantity_adjusted: quantityAdjusted,
+        line_items: [{ item_id: item.item_id, sku: item.sku, quantity_adjusted: quantityAdjusted }]
+      }
+    };
+  }
+
+  async confirmSalesOrder(salesorderId) {
+    const so = this._salesOrders.get(salesorderId);
+    if (so) {
+      so.status = 'confirmed';
+      this._log('[ZOHO_MOCK] Confirmed sales order:', salesorderId);
+    }
+    return { code: 0, message: 'Sales order status has been changed to Confirmed. [MOCK MODE]' };
+  }
+
+  async packSalesOrder(salesorderId) {
+    const so = this._salesOrders.get(salesorderId);
+    if (so) {
+      so.status = 'confirmed';
+      so.package_status = 'packed';
+      this._log('[ZOHO_MOCK] Packed sales order:', salesorderId);
+    }
+    return { code: 0, message: 'Package created successfully [MOCK MODE]', package: { package_id: `MOCK-PKG-${Date.now()}` } };
+  }
+
+  async shipSalesOrder({ salesorderId, trackingNumber, courier }) {
+    const so = this._salesOrders.get(salesorderId);
+    if (so) {
+      so.status = 'shipped';
+      so.shipped_status = 'shipped';
+      so.tracking_number = trackingNumber;
+      this._log(`[ZOHO_MOCK] Shipped sales order ${salesorderId}: ${courier} ${trackingNumber}`);
+    }
+    return { code: 0, message: 'Shipment Order Created Successfully. [MOCK MODE]' };
+  }
+
+  async addOrderComment(salesorderId, commentText) {
+    this._log(`[ZOHO_MOCK] Added comment to ${salesorderId}: ${commentText}`);
+    return { code: 0, message: 'Comments added. [MOCK MODE]' };
   }
 }
 

@@ -86,7 +86,7 @@ const sampleSalesOrder = {
     }
   ],
   custom_fields: [
-    { label: 'GetMeds Customer Type', value: 'Credit Customer' },
+    { label: 'Getmeds Customer Type', value: 'Credit Customer' },
     { label: 'Payment Status', value: 'Credit Terms (Auto-approved)' }
   ],
   created_time: '2026-08-21T00:00:00+08:00'

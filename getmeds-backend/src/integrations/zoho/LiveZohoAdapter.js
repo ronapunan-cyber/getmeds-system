@@ -119,7 +119,7 @@ class LiveZohoAdapter extends ZohoAdapter {
       customer_id: contactResult.contact.contact_id,
       date: new Date().toISOString().slice(0, 10),
       reference_number: orderData.getmeds_order_id,
-      notes: `GetMeds Order: ${orderData.getmeds_order_id}`,
+      notes: `Getmeds Order: ${orderData.getmeds_order_id}`,
       line_items: (orderData.items || []).map((item) => ({
         name: item.name,
         quantity: item.quantity,
@@ -148,6 +148,154 @@ class LiveZohoAdapter extends ZohoAdapter {
   async listItems(params = {}) {
     const result = await this._request('GET', '/items', { query: params });
     return { code: 0, message: 'success', items: result.items || [] };
+  }
+
+  async createItem(itemData) {
+    const body = {
+      name: itemData.name,
+      sku: itemData.sku,
+      rate: itemData.rate ?? itemData.unit_price ?? 0,
+      item_type: 'inventory',
+      product_type: 'goods',
+      initial_stock: itemData.initial_stock ?? itemData.stock ?? 0,
+      initial_stock_rate: itemData.rate ?? itemData.unit_price ?? 0,
+      unit: itemData.unit || 'pc',
+      description: itemData.description || `GetMeds Pharmaceutical SKU: ${itemData.sku}`
+    };
+    const result = await this._request('POST', '/items', { body });
+    return { code: 0, message: 'Item created successfully', item: result.item };
+  }
+
+  async findOrCreateItem(productData) {
+    const searchRes = await this._request('GET', '/items', {
+      query: { search_text: productData.sku || productData.name }
+    });
+    const found = (searchRes.items || []).find(
+      (i) => (productData.sku && i.sku === productData.sku) || i.name === productData.name
+    );
+    if (found) {
+      const fullItemRes = await this._request('GET', `/items/${found.item_id}`);
+      return { code: 0, message: 'success', item: fullItemRes.item || found };
+    }
+    return this.createItem(productData);
+  }
+
+  async adjustStock({ itemId, sku, quantityAdjusted, reason = 'Stock adjustment from GetMeds' }) {
+    let resolvedItemId = itemId;
+    if (!resolvedItemId && sku) {
+      const itemRes = await this.findOrCreateItem({ sku });
+      resolvedItemId = itemRes.item?.item_id;
+    }
+    if (!resolvedItemId) {
+      throw new Error('adjustStock requires either itemId or sku to resolve the Zoho item');
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const body = {
+      mode: 'quantity',
+      date: today,
+      reason,
+      line_items: [
+        {
+          item_id: resolvedItemId,
+          quantity_adjusted: quantityAdjusted
+        }
+      ]
+    };
+    const result = await this._request('POST', '/inventoryadjustments', { body });
+    return { code: 0, message: 'Inventory adjusted successfully', inventory_adjustment: result.inventory_adjustment };
+  }
+
+  async confirmSalesOrder(salesorderId) {
+    if (!salesorderId) return { code: 0, message: 'no salesorderId provided' };
+    try {
+      const result = await this._request('POST', `/salesorders/${salesorderId}/status/confirmed`);
+      return { code: 0, message: result.message || 'Sales order confirmed' };
+    } catch (err) {
+      this._log(`[ZOHO_CONFIRM_WARN] Could not mark SO ${salesorderId} confirmed:`, err.message);
+      return { code: 1, message: err.message };
+    }
+  }
+
+  async packSalesOrder(salesorderId) {
+    if (!salesorderId) return { code: 0, message: 'no salesorderId provided' };
+    try {
+      const soRes = await this._request('GET', `/salesorders/${salesorderId}`);
+      const lineItems = (soRes.salesorder?.line_items || []).map((l) => ({
+        so_line_item_id: l.line_item_id,
+        quantity: l.quantity
+      }));
+      if (lineItems.length === 0) return { code: 0, message: 'no line items to pack' };
+
+      const body = {
+        package_number: `PKG-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString().slice(0, 10),
+        line_items: lineItems
+      };
+      const result = await this._request('POST', '/packages', {
+        query: { salesorder_id: salesorderId },
+        body
+      });
+      return { code: 0, message: 'Package created successfully', package: result.package };
+    } catch (err) {
+      this._log(`[ZOHO_PACK_WARN] Could not create package for SO ${salesorderId}:`, err.message);
+      return { code: 1, message: err.message };
+    }
+  }
+
+  async shipSalesOrder({ salesorderId, trackingNumber, courier = 'Standard Delivery' }) {
+    if (!salesorderId) return { code: 0, message: 'no salesorderId provided' };
+    try {
+      let packageId = null;
+      const pkgsRes = await this._request('GET', '/packages', {
+        query: { salesorder_id: salesorderId }
+      }).catch(() => ({ packages: [] }));
+
+      if (pkgsRes.packages && pkgsRes.packages.length > 0) {
+        packageId = pkgsRes.packages[0].package_id;
+      } else {
+        const packRes = await this.packSalesOrder(salesorderId);
+        packageId = packRes.package?.package_id;
+      }
+
+      if (packageId) {
+        const body = {
+          shipment_number: `SHP-${Date.now().toString().slice(-6)}`,
+          date: new Date().toISOString().slice(0, 10),
+          tracking_number: trackingNumber,
+          delivery_method: courier,
+          package_ids: String(packageId)
+        };
+        await this._request('POST', '/shipmentorders', {
+          query: { salesorder_id: salesorderId, package_ids: String(packageId) },
+          body
+        });
+      }
+
+      await this.addOrderComment(
+        salesorderId,
+        `Dispatched via ${courier} | Tracking #: ${trackingNumber}`
+      );
+
+      return { code: 0, message: 'Sales order marked as shipped' };
+    } catch (err) {
+      this._log(`[ZOHO_SHIP_WARN] Could not ship SO ${salesorderId}:`, err.message);
+      await this.addOrderComment(salesorderId, `Tracking: ${courier} ${trackingNumber}`).catch(() => {});
+      return { code: 1, message: err.message };
+    }
+  }
+
+  async addOrderComment(salesorderId, commentText) {
+    if (!salesorderId || !commentText) return { code: 0, message: 'skipped' };
+    try {
+      const result = await this._request('POST', `/salesorders/${salesorderId}/comments`, {
+        body: { description: commentText }
+      });
+      return { code: 0, message: 'Comment added', comment: result.comment };
+    } catch (err) {
+      this._log(`[ZOHO_COMMENT_WARN] Could not add comment to SO ${salesorderId}:`, err.message);
+      return { code: 1, message: err.message };
+    }
   }
 }
 

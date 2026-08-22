@@ -1,4 +1,5 @@
 const db = require('../db/database');
+const zoho = require('../integrations/zoho');
 const { logEvent } = require('../services/auditService');
 const { notify, getUserIdsByRole } = require('../services/notificationService');
 
@@ -85,6 +86,12 @@ exports.verifyPayment = (req, res, next) => {
       });
       txn();
 
+      // Sync status to Zoho
+      if (order.zoho_so_id) {
+        zoho.confirmSalesOrder(order.zoho_so_id).catch(() => {});
+        zoho.addOrderComment(order.zoho_so_id, `Payment Verified by ${req.user.name} | Ref: ${payment_reference || 'N/A'}`).catch(() => {});
+      }
+
     } else {
       // Rejected: order → on_hold
       const txn = db.transaction(() => {
@@ -100,6 +107,10 @@ exports.verifyPayment = (req, res, next) => {
         notify({ orderId: order.id, recipientIds: [order.medrep_user_id], message: `Payment rejected for ${order.getmeds_order_id}. Order is on hold. Notes: ${notes || 'None'}`, eventType: 'PAYMENT_REJECTED', orderData: order });
       });
       txn();
+
+      if (order.zoho_so_id) {
+        zoho.addOrderComment(order.zoho_so_id, `Payment Rejected by ${req.user.name} | Notes: ${notes || 'None'}`).catch(() => {});
+      }
     }
 
     const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id);

@@ -107,6 +107,9 @@ function buildAdapter(env = process.env) {
  * Fill this in only once you're pointed at an approved test/sandbox org.
  */
 function buildOAuthTokenGetter(env) {
+  let cachedToken = null;
+  let tokenExpiresAt = 0;
+
   return async () => {
     if (!env.ZOHO_CLIENT_ID || !env.ZOHO_CLIENT_SECRET || !env.ZOHO_REFRESH_TOKEN) {
       throw new Error(
@@ -115,10 +118,34 @@ function buildOAuthTokenGetter(env) {
           'your test/sandbox organization only.'
       );
     }
-    throw new Error(
-      'OAuth refresh-token exchange is not implemented yet. Implement it here (POST to ' +
-        'https://accounts.zoho.com/oauth/v2/token) before using ZOHO_MODE=live.'
-    );
+
+    const now = Date.now();
+    // Return cached token if valid (with 60s safety buffer)
+    if (cachedToken && now < tokenExpiresAt - 60000) {
+      return cachedToken;
+    }
+
+    const accountsUrl = (env.ZOHO_ACCOUNTS_URL || 'https://accounts.zoho.com').replace(/\/+$/, '');
+    const params = new URLSearchParams({
+      refresh_token: env.ZOHO_REFRESH_TOKEN,
+      client_id: env.ZOHO_CLIENT_ID,
+      client_secret: env.ZOHO_CLIENT_SECRET,
+      grant_type: 'refresh_token'
+    });
+
+    const res = await fetch(`${accountsUrl}/oauth/v2/token`, {
+      method: 'POST',
+      body: params
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      throw new Error(`Failed to refresh Zoho access token: ${data.error || res.statusText}`);
+    }
+
+    cachedToken = data.access_token;
+    tokenExpiresAt = now + (data.expires_in || 3600) * 1000;
+    return cachedToken;
   };
 }
 
@@ -155,6 +182,13 @@ const facadeMethods = [
   'findOrCreateContact',
   'listContacts',
   'listItems',
+  'createItem',
+  'findOrCreateItem',
+  'adjustStock',
+  'confirmSalesOrder',
+  'packSalesOrder',
+  'shipSalesOrder',
+  'addOrderComment',
   'setSimulatedOutage',
   'isSimulatedOutage'
 ];

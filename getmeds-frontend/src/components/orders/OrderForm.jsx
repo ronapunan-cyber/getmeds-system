@@ -180,7 +180,7 @@ const OrderForm = ({ onCancel, onSuccess }) => {
   const mutation = useMutation({
     mutationFn: async () => {
       // POST /api/orders (no `status: 'draft'` override) already runs the
-      // full workflow gate in one call: it generates the GetMeds Order ID,
+      // full workflow gate in one call: it generates the Getmeds Order ID,
       // creates the Zoho Sales Order, and sets the final status
       // (ready_for_dispatch for credit / waiting_for_payment for direct) —
       // see orders.controller.js `create`. A second call to
@@ -650,7 +650,7 @@ const OrderForm = ({ onCancel, onSuccess }) => {
             <div>
               <h3 className="text-lg font-bold text-ink-primary">Requisition Kicked Off!</h3>
               <p className="text-xs text-ink-secondary mt-1">
-                Your order is now officially registered in the GetMeds state machine.
+                Your order is now officially registered in the Getmeds state machine.
               </p>
             </div>
 

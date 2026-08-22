@@ -56,7 +56,7 @@ describe('notificationService — real delivery channels', () => {
 
   test('a configured SMTP transporter is actually called with the right envelope', async () => {
     process.env.SMTP_HOST = 'smtp.example.com';
-    process.env.SMTP_FROM = '"GetMeds Test" <test@getmeds.ph>';
+    process.env.SMTP_FROM = '"Getmeds Test" <test@getmeds.ph>';
 
     const sendMail = jest.fn().mockResolvedValue({ messageId: 'abc123' });
     jest.doMock('nodemailer', () => ({
@@ -68,7 +68,7 @@ describe('notificationService — real delivery channels', () => {
 
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: '"GetMeds Test" <test@getmeds.ph>',
+        from: '"Getmeds Test" <test@getmeds.ph>',
         to: 'medrep@getmeds.ph',
         subject: 'Hello',
         text: 'World'

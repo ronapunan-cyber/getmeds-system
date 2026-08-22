@@ -42,6 +42,17 @@ function getDb() {
           db.exec('ALTER TABLE users ADD COLUMN is_test_account INTEGER DEFAULT 0');
         }
       }
+
+      const prodTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").get();
+      if (prodTableExists) {
+        const prodCols = db.pragma('table_info(products)').map(c => c.name);
+        if (!prodCols.includes('zoho_item_id')) {
+          db.exec('ALTER TABLE products ADD COLUMN zoho_item_id TEXT');
+        }
+        if (!prodCols.includes('last_synced_at')) {
+          db.exec('ALTER TABLE products ADD COLUMN last_synced_at TEXT');
+        }
+      }
     } catch (e) {
       console.warn('Note on DB migration:', e.message);
     }

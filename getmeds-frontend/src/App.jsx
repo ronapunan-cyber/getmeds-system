@@ -18,6 +18,7 @@ import DispatchHistoryPage from './pages/dispatch/DispatchHistoryPage';
 import ManagementDashboardPage from './pages/management/ManagementDashboardPage';
 import ExceptionHubPage from './pages/management/ExceptionHubPage';
 import UsersPage from './pages/admin/UsersPage';
+import InventoryPage from './pages/admin/InventoryPage';
 import TestModePage from './pages/TestModePage';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -135,6 +136,22 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <UsersPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/inventory" 
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'management', 'dispatch']}>
+                <InventoryPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/inventory" 
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'management', 'dispatch']}>
+                <InventoryPage />
               </ProtectedRoute>
             } 
           />

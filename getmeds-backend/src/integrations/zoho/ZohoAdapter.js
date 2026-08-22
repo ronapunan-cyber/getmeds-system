@@ -11,7 +11,7 @@
  *
  * Safety-by-design:
  *   There is NO delete, void, bulk-delete, or write-off method on this
- *   contract — on purpose. GetMeds' order automation never needs to delete
+ *   contract — on purpose. Getmeds' order automation never needs to delete
  *   or void anything in Zoho; it only ever creates and reads sales orders,
  *   contacts, and items. Because the interface itself doesn't declare those
  *   destructive methods, no implementation (mock, sandbox, or live) can be
@@ -53,7 +53,7 @@ class ZohoAdapter {
   }
 
   /**
-   * Look up (or lazily create) the Zoho contact_id for a GetMeds customer.
+   * Look up (or lazily create) the Zoho contact_id for a Getmeds customer.
    * Read-mostly by design — order automation needs a contact_id to attach
    * to a sales order, it does not need to edit or delete customer records.
    * @returns {Promise<{code:number, message:string, contact:object}>}
@@ -69,6 +69,70 @@ class ZohoAdapter {
 
   /** @returns {Promise<{code:number, message:string, items:object[]}>} */
   async listItems(params = {}) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Register a new inventory item in Zoho.
+   * @param {object} itemData - {name, sku, rate, initial_stock, unit, description}
+   * @returns {Promise<{code:number, message:string, item:object}>}
+   */
+  async createItem(itemData) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Look up (or lazily create) an item in Zoho by SKU.
+   * @param {object} productData - {name, sku, unit_price, stock, unit}
+   * @returns {Promise<{code:number, message:string, item:object}>}
+   */
+  async findOrCreateItem(productData) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Post an inventory adjustment (positive or negative quantity delta).
+   * @param {object} adjustmentData - {itemId, sku, quantityAdjusted, reason}
+   * @returns {Promise<{code:number, message:string, inventory_adjustment:object}>}
+   */
+  async adjustStock(adjustmentData) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Confirm a Sales Order in Zoho (moves from Draft -> Confirmed).
+   * @param {string} salesorderId
+   * @returns {Promise<{code:number, message:string}>}
+   */
+  async confirmSalesOrder(salesorderId) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Create a Package for a Sales Order in Zoho (moves from Confirmed -> Packed).
+   * @param {string} salesorderId
+   * @returns {Promise<{code:number, message:string, package:object}>}
+   */
+  async packSalesOrder(salesorderId) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Create a Shipment Order in Zoho (moves from Packed -> Shipped).
+   * @param {object} shipmentData - {salesorderId, trackingNumber, courier}
+   * @returns {Promise<{code:number, message:string, shipment:object}>}
+   */
+  async shipSalesOrder(shipmentData) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Post an internal comment/audit milestone to Zoho's transaction timeline.
+   * @param {string} salesorderId
+   * @param {string} commentText
+   * @returns {Promise<{code:number, message:string}>}
+   */
+  async addOrderComment(salesorderId, commentText) {
     throw new Error('Not implemented');
   }
 

@@ -39,10 +39,10 @@ function createSalesOrderMock(orderData) {
       customer_id: `{zoho_customer_id_for:${orderData.customer_name}}`,
       date: new Date().toISOString().slice(0, 10),
       reference_number: orderData.getmeds_order_id,
-      notes: `GetMeds Order: ${orderData.getmeds_order_id}`,
+      notes: `Getmeds Order: ${orderData.getmeds_order_id}`,
       custom_fields: [
         {
-          label: 'GetMeds Customer Type',
+          label: 'Getmeds Customer Type',
           value: customerTypeLabel
         },
         {

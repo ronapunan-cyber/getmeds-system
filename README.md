@@ -1,6 +1,6 @@
-# GetMeds Order Process Automation System
+# Getmeds Order Process Automation System
 
-A working prototype for the GetMeds 7-Day AI & Order Process Automation Challenge.
+A working prototype for the Getmeds 7-Day AI & Order Process Automation Challenge.
 
 ## 🚀 Quick Start
 
@@ -125,13 +125,13 @@ ZOHO_REFRESH_TOKEN=your_refresh_token
 ZOHO_ORG_ID=your_organization_id
 ```
 
-### API Mapping (GetMeds → Zoho)
+### API Mapping (Getmeds → Zoho)
 
-| GetMeds Field | Zoho Books Field | Notes |
+| Getmeds Field | Zoho Books Field | Notes |
 |---|---|---|
 | `getmeds_order_id` | `reference_number` | Links the two systems (single source of truth) |
 | `customer_id` | `customer_id` | Mapped to Zoho Customer ID |
-| `customer_type` | `custom_fields[0]` ("GetMeds Customer Type") | `"Credit Customer"` vs `"Non-Credit Patient"` |
+| `customer_type` | `custom_fields[0]` ("Getmeds Customer Type") | `"Credit Customer"` vs `"Non-Credit Patient"` |
 | `status` / finance state | `custom_fields[1]` ("Payment Status") | `"Credit Terms (Auto-approved)"` vs `"Pending Finance Verification"` |
 | `items[].product_id` | `line_items[].item_id` | Mapped to Zoho Item SKU/ID |
 | `items[].unit_price` | `line_items[].rate` | Unit selling rate |
@@ -139,7 +139,7 @@ ZOHO_ORG_ID=your_organization_id
 | `total_amount` | `total` | Auto-calculated by Zoho |
 | `delivery_address` | `shipping_address.address` | Shipping destination |
 
-> **Architectural Note on SO Numbering**: `salesorder_number` is intentionally omitted from the outgoing POST request body. This allows Zoho Books to auto-assign its own sequential sales order sequence (avoiding collisions with manual entries). The GetMeds backend captures the returned `salesorder_number` and `salesorder_id` in Zoho's response and persists them in the database.
+> **Architectural Note on SO Numbering**: `salesorder_number` is intentionally omitted from the outgoing POST request body. This allows Zoho Books to auto-assign its own sequential sales order sequence (avoiding collisions with manual entries). The Getmeds backend captures the returned `salesorder_number` and `salesorder_id` in Zoho's response and persists them in the database.
 
 **Zoho endpoint**: `POST https://www.zohoapis.com/books/v3/salesorders?organization_id={ORG_ID}`  
 **Auth**: OAuth2 Bearer token (refresh via `https://accounts.zoho.com/oauth/v2/token`)
@@ -238,5 +238,5 @@ npm test
 
 ---
 
-*GetMeds Philippines Inc. | Order Process Automation Prototype*  
+*Getmeds Philippines Inc. | Order Process Automation Prototype*  
 *Built as part of the 7-Day AI & Order Process Automation Challenge*

@@ -1,6 +1,6 @@
 const stateMachine = require('../src/workflow/stateMachine');
 
-describe('GetMeds Order State Machine', () => {
+describe('Getmeds Order State Machine', () => {
   // Valid transitions
   describe('Valid transitions', () => {
     const validCases = [

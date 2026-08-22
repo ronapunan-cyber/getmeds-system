@@ -39,6 +39,22 @@ describe('orders.controller — Zoho call sequencing (create/submit)', () => {
   const createdOrderIds = [];
 
   beforeAll(() => {
+    // Clean up any stale test records from previous runs
+    const staleOrders = db.prepare(`
+      SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE 'ZOHO-TEST%')
+    `).all();
+    for (const o of staleOrders) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM zoho_sync_queue WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM orders WHERE id = ?').run(o.id);
+    }
+    db.prepare(`DELETE FROM products WHERE sku = 'ZOHOTEST-SKU-001'`).run();
+    db.prepare(`DELETE FROM customers WHERE name LIKE 'ZOHO-TEST%'`).run();
+
     const medrep = db.prepare("SELECT id FROM users WHERE email = 'medrep@getmeds.ph'").get();
     if (!medrep) throw new Error('Expected seeded medrep@getmeds.ph to exist — run `npm run setup` first.');
     medrepId = medrep.id;
@@ -57,12 +73,19 @@ describe('orders.controller — Zoho call sequencing (create/submit)', () => {
   });
 
   afterAll(() => {
-    // orders.id cascades to order_items/payments/dispatch_records/order_events/notifications
     for (const id of createdOrderIds) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM zoho_sync_queue WHERE order_id = ?').run(id);
       db.prepare('DELETE FROM orders WHERE id = ?').run(id);
     }
-    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
-    db.prepare('DELETE FROM customers WHERE id IN (?, ?)').run(creditCustomerId, directCustomerId);
+    if (productId) db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    if (creditCustomerId && directCustomerId) {
+      db.prepare('DELETE FROM customers WHERE id IN (?, ?)').run(creditCustomerId, directCustomerId);
+    }
   });
 
   afterEach(() => {

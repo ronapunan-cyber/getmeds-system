@@ -32,3 +32,35 @@ export const fetchCustomers = async () => {
   }
   return response.json();
 };
+
+/**
+ * Fetch live inventory synchronization status
+ */
+export const fetchInventoryStatus = async () => {
+  const res = await client.get('/api/inventory/status');
+  return res.data;
+};
+
+/**
+ * Push all catalog products to Zoho Inventory
+ */
+export const syncPushCatalog = async () => {
+  const res = await client.post('/api/inventory/sync-push');
+  return res.data;
+};
+
+/**
+ * Pull live stock levels from Zoho Inventory
+ */
+export const syncPullStock = async () => {
+  const res = await client.post('/api/inventory/sync-pull');
+  return res.data;
+};
+
+/**
+ * Adjust product stock in both GetMeds and Zoho
+ */
+export const adjustProductStock = async ({ product_id, delta, reason }) => {
+  const res = await client.post('/api/inventory/adjust', { product_id, delta, reason });
+  return res.data;
+};

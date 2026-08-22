@@ -5,7 +5,29 @@
  * guaranteeing it cannot be enabled in production environments.
  */
 
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
 function isTestModeEnabled() {
+  // In development, sync with local .env file changes dynamically (skip in Jest unit tests)
+  if (process.env.IS_JEST !== 'true' && process.env.NODE_ENV !== 'test') {
+    try {
+      const envPath = path.resolve(__dirname, '../../.env');
+      if (fs.existsSync(envPath)) {
+        const envConfig = dotenv.parse(fs.readFileSync(envPath));
+        if (envConfig.TEST_MODE !== undefined) {
+          process.env.TEST_MODE = envConfig.TEST_MODE;
+        }
+        if (envConfig.DEBUG !== undefined) {
+          process.env.DEBUG = envConfig.DEBUG;
+        }
+      }
+    } catch (e) {
+      // fallback to process.env
+    }
+  }
+
   const isTestMode = process.env.TEST_MODE === 'true';
   const isProduction = process.env.NODE_ENV === 'production';
 

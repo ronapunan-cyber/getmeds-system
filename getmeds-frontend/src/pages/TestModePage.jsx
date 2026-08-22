@@ -268,22 +268,39 @@ const TestModePage = () => {
   const handleQuickLogin = async (accountEmail, accountPassword) => {
     setError(null);
     try {
-      if (currentUser) {
-        logout();
-      }
-      try {
-        if (quickLogin) {
-          await quickLogin(accountEmail);
-        } else {
-          await login(accountEmail, accountPassword || password);
+      let loggedInUser = null;
+      if (quickLogin) {
+        try {
+          loggedInUser = await quickLogin(accountEmail);
+        } catch (quickErr) {
+          loggedInUser = await login(accountEmail, accountPassword || password);
         }
-      } catch (quickErr) {
-        // Fallback to standard login with password if needed
-        await login(accountEmail, accountPassword || password);
+      } else {
+        loggedInUser = await login(accountEmail, accountPassword || password);
       }
-      navigate('/dashboard');
+
+      toast.success(`Logged in as ${loggedInUser?.name || accountEmail} (${loggedInUser?.role || 'Test User'})`, {
+        icon: '⚡',
+        duration: 3000
+      });
+
+      // Role-based landing redirection
+      const userRole = (loggedInUser?.role || '').toLowerCase();
+      if (userRole === 'medrep') {
+        navigate('/medrep/dashboard');
+      } else if (userRole === 'finance') {
+        navigate('/finance');
+      } else if (userRole === 'dispatch') {
+        navigate('/dispatch');
+      } else if (userRole === 'management' || userRole === 'admin') {
+        navigate('/management');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
-      setError(`Quick login failed: ${err.response?.data?.error?.message || err.message}`);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      setError(`Quick login failed: ${msg}`);
+      toast.error(`Quick login failed: ${msg}`);
     }
   };
 

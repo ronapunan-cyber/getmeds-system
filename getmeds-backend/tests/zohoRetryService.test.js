@@ -28,7 +28,24 @@ describe('zohoRetryService', () => {
   const createdOrderIds = [];
 
   beforeAll(() => {
+    // Clean up any stale test records from previous runs
+    const staleOrders = db.prepare(`
+      SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE 'ZOHO-RETRY%') OR getmeds_order_id LIKE 'GM-TESTQ%'
+    `).all();
+    for (const o of staleOrders) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM zoho_sync_queue WHERE order_id = ?').run(o.id);
+      db.prepare('DELETE FROM orders WHERE id = ?').run(o.id);
+    }
+    db.prepare(`DELETE FROM products WHERE sku = 'ZOHORETRY-SKU-001'`).run();
+    db.prepare(`DELETE FROM customers WHERE name LIKE 'ZOHO-RETRY%'`).run();
+
     const medrep = db.prepare("SELECT id FROM users WHERE email = 'medrep@getmeds.ph'").get();
+    if (!medrep) throw new Error('Expected seeded medrep@getmeds.ph to exist — run `npm run setup` first.');
     medrepId = medrep.id;
 
     customerId = db.prepare(
@@ -42,10 +59,16 @@ describe('zohoRetryService', () => {
 
   afterAll(() => {
     for (const id of createdOrderIds) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM zoho_sync_queue WHERE order_id = ?').run(id);
       db.prepare('DELETE FROM orders WHERE id = ?').run(id);
     }
-    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
-    db.prepare('DELETE FROM customers WHERE id = ?').run(customerId);
+    if (productId) db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    if (customerId) db.prepare('DELETE FROM customers WHERE id = ?').run(customerId);
   });
 
   beforeEach(() => {
@@ -186,13 +209,6 @@ describe('admin.controller — Zoho queue endpoints', () => {
     ).run('ZOHO-ADMIN-TEST Customer').lastInsertRowid;
   });
 
-  afterAll(() => {
-    for (const id of createdOrderIds) {
-      db.prepare('DELETE FROM orders WHERE id = ?').run(id);
-    }
-    db.prepare('DELETE FROM customers WHERE id = ?').run(customerId);
-  });
-
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -238,5 +254,20 @@ describe('admin.controller — Zoho queue endpoints', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.results.some((r) => r.orderId === orderId && r.outcome === 'succeeded')).toBe(true);
+  });
+
+  afterAll(() => {
+    for (const id of createdOrderIds) {
+      db.prepare('DELETE FROM notifications WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM zoho_sync_queue WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_events WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM payments WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM dispatch_records WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+      db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    }
+    if (customerId) {
+      db.prepare('DELETE FROM customers WHERE id = ?').run(customerId);
+    }
   });
 });

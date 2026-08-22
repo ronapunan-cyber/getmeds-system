@@ -46,7 +46,7 @@ async function sendRealEmail(payload) {
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"GetMeds Orders" <no-reply@getmeds.ph>',
+      from: process.env.SMTP_FROM || '"Getmeds Orders" <no-reply@getmeds.ph>',
       to: payload.to,
       subject: payload.subject,
       text: payload.body,
@@ -132,7 +132,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
   // 2a. Enhanced Internal Email (Staff/MedRep)
   const internalEmailPayload = {
     to: orderData.medrep_email || 'medrep@getmeds.ph',
-    subject: `[GetMeds] Order ${orderData.getmeds_order_id || ''} — ${eventType}`,
+    subject: `[Getmeds] Order ${orderData.getmeds_order_id || ''} — ${eventType}`,
     body: message,
     order_id: orderData.getmeds_order_id || 'N/A',
     customer_name: orderData.customer_name || 'N/A',
@@ -150,7 +150,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
   const customerFacingEvents = ['ORDER_SUBMITTED', 'PAYMENT_VERIFIED', 'ORDER_DISPATCHED', 'ORDER_COMPLETED'];
   if (customerFacingEvents.includes(eventType) && orderData.customer_name) {
     let customerStatus = 'Processing';
-    let customerMessage = `Thank you for your order! Your GetMeds order ${orderData.getmeds_order_id || ''} is being prepared by our pharmacy team.`;
+    let customerMessage = `Thank you for your order! Your Getmeds order ${orderData.getmeds_order_id || ''} is being prepared by our pharmacy team.`;
 
     if (eventType === 'PAYMENT_VERIFIED') {
       customerStatus = 'Payment Confirmed';
@@ -165,7 +165,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
     const customerEmailPayload = {
       recipient_type: 'customer',
       to: orderData.customer_email || `patient.${orderData.customer_name.toLowerCase().replace(/[^a-z0-9]/g, '')}@gmail.com`,
-      subject: `GetMeds Order Update: ${orderData.getmeds_order_id || ''} — ${customerStatus}`,
+      subject: `Getmeds Order Update: ${orderData.getmeds_order_id || ''} — ${customerStatus}`,
       body: customerMessage,
       order_id: orderData.getmeds_order_id || 'N/A',
       customer_name: orderData.customer_name,
@@ -189,7 +189,7 @@ function notify({ orderId, recipientIds, message, eventType, orderData = {} }) {
       : 'This is a simulated payload only. Set GOOGLE_CHAT_WEBHOOK_URL in .env to send real messages.',
     cards: [{
       header: {
-        title: `GetMeds Order Update`,
+        title: `Getmeds Order Update`,
         subtitle: `Order: ${orderData.getmeds_order_id || 'N/A'}`,
         imageUrl: 'https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg'
       },

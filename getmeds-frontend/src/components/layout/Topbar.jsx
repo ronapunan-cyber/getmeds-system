@@ -228,7 +228,7 @@ const Topbar = ({ onToggleSidebar }) => {
         onClose={() => setIsLogoutDialogOpen(false)}
         onConfirm={logout}
         title="Sign Out Confirmation"
-        message="Are you sure you want to sign out of the GetMeds system?"
+        message="Are you sure you want to sign out of the Getmeds system?"
         confirmText="Sign Out"
         cancelText="Cancel"
         variant="danger"

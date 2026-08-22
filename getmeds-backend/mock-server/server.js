@@ -140,7 +140,7 @@ router.delete('*', (req, res) => {
   res.status(405).json({
     code: 0,
     message: 'This mock server intentionally implements no delete endpoints. Destructive Zoho ' +
-      'operations are out of scope for GetMeds order automation.'
+      'operations are out of scope for Getmeds order automation.'
   });
 });
 

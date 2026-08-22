@@ -1,7 +1,7 @@
 {
   "name": "getmeds-backend",
   "version": "1.0.0",
-  "description": "GetMeds Order Process Automation System Backend",
+  "description": "Getmeds Order Process Automation System Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

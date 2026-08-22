@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS products (
   unit_price REAL NOT NULL CHECK(unit_price >= 0),
   unit TEXT DEFAULT 'pc',
   stock INTEGER DEFAULT 0 CHECK(stock >= 0),
+  zoho_item_id TEXT,
+  last_synced_at TEXT,
   is_active INTEGER DEFAULT 1
 );
 

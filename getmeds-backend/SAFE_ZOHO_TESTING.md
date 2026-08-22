@@ -10,7 +10,7 @@ real company Zoho organization by accident.
 1. **A narrow adapter contract (`ZohoAdapter.js`)** — the only thing
    controllers are allowed to import (`require('../integrations/zoho')`).
    It deliberately has no delete, void, bulk-delete, or write-off method.
-   GetMeds order automation only ever needs to create and read sales
+   Getmeds order automation only ever needs to create and read sales
    orders/contacts/items in Zoho, so those are the only methods that
    exist. There is no destructive call to accidentally make, because the
    code to make one was never written.

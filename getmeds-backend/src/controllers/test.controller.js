@@ -286,13 +286,23 @@ exports.cleanupTestAccounts = (req, res, next) => {
  */
 exports.quickLogin = (req, res, next) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Email is required for quick login' } });
+    const { email, role } = req.body;
+    if (!email && !role) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Email or role is required for quick login' } });
     }
-    const user = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?').get(email);
+
+    let user;
+    if (email) {
+      user = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?').get(email);
+    }
+    
+    // Fallback by role if user by email not found or only role provided
+    if (!user && role) {
+      user = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE role = ? AND is_active = 1 ORDER BY id ASC LIMIT 1').get(role);
+    }
+
     if (!user) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `User with email "${email}" not found` } });
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `User not found` } });
     }
     if (!user.is_active) {
       return res.status(403).json({ success: false, error: { code: 'ACCOUNT_INACTIVE', message: 'Account is deactivated' } });

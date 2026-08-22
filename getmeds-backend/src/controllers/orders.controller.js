@@ -163,7 +163,7 @@ exports.create = async (req, res, next) => {
       resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unit_price: product.unit_price, subtotal, sku: product.sku, name: product.name });
     }
 
-    // 1. Generate unique GetMeds Order ID (GM-YYYYMMDD-XXXX)
+    // 1. Generate unique Getmeds Order ID (GM-YYYYMMDD-XXXX)
     const getmedsOrderId = generateOrderId();
     const isDraft = requestedStatus === 'draft';
     const isCredit = resolvedCustomerType === 'credit';
@@ -198,6 +198,10 @@ exports.create = async (req, res, next) => {
       try {
         zohoResult = await zoho.createSalesOrder(zohoPayload);
         zohoSyncStatus = 'synced';
+        if (isCredit && zohoResult?.salesorder?.salesorder_id) {
+          await zoho.confirmSalesOrder(zohoResult.salesorder.salesorder_id).catch(() => {});
+          await zoho.addOrderComment(zohoResult.salesorder.salesorder_id, 'Credit Customer Fast-Track Order Auto-Confirmed via GetMeds').catch(() => {});
+        }
       } catch (err) {
         zohoSyncStatus = 'failed';
         zohoError = err.message;
@@ -368,6 +372,11 @@ exports.submit = async (req, res, next) => {
     try {
       zohoResult = await zoho.createSalesOrder(zohoPayload);
       zohoSyncStatus = 'synced';
+      const isCreditCheck = (order.customer_type === 'credit' || order.customer_master_type === 'credit');
+      if (isCreditCheck && zohoResult?.salesorder?.salesorder_id) {
+        await zoho.confirmSalesOrder(zohoResult.salesorder.salesorder_id).catch(() => {});
+        await zoho.addOrderComment(zohoResult.salesorder.salesorder_id, 'Credit Customer Fast-Track Order Auto-Confirmed via GetMeds').catch(() => {});
+      }
     } catch (err) {
       zohoSyncStatus = 'failed';
       zohoError = err.message;

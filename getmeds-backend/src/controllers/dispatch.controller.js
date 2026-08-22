@@ -1,4 +1,5 @@
 const db = require('../db/database');
+const zoho = require('../integrations/zoho');
 const { logEvent } = require('../services/auditService');
 const { notify, getUserIdsByRole } = require('../services/notificationService');
 
@@ -52,6 +53,15 @@ exports.updateStatus = (req, res, next) => {
       });
       txn();
 
+      if (order.zoho_so_id) {
+        if (status === 'picking') {
+          zoho.addOrderComment(order.zoho_so_id, `Pharmacy Picking in progress by ${req.user.name}`).catch(() => {});
+        } else if (status === 'packing') {
+          zoho.packSalesOrder(order.zoho_so_id).catch(() => {});
+          zoho.addOrderComment(order.zoho_so_id, `Order Packed by ${req.user.name}`).catch(() => {});
+        }
+      }
+
     } else if (status === 'dispatched') {
       if (order.status !== 'picking_packing') {
         return res.status(409).json({ success: false, error: { code: 'CONFLICT', message: `Order must be in picking_packing to mark dispatched` } });
@@ -63,6 +73,11 @@ exports.updateStatus = (req, res, next) => {
         logEvent({ orderId: order.id, eventType: 'ORDER_DISPATCHED', oldStatus: 'picking_packing', newStatus: 'dispatched', actorId: req.user.id, actorName: req.user.name });
       });
       txn();
+
+      if (order.zoho_so_id) {
+        zoho.packSalesOrder(order.zoho_so_id).catch(() => {});
+        zoho.addOrderComment(order.zoho_so_id, `Order Dispatched by ${req.user.name} — Awaiting courier tracking`).catch(() => {});
+      }
 
       notify({ orderId: order.id, recipientIds: [order.medrep_user_id], message: `Order ${order.getmeds_order_id} has been dispatched. Awaiting tracking details.`, eventType: 'ORDER_DISPATCHED', orderData: order });
     }
@@ -121,6 +136,15 @@ exports.enterTracking = (req, res, next) => {
       });
     });
     txn();
+
+    // Sync shipment & tracking to Zoho
+    if (order.zoho_so_id) {
+      zoho.shipSalesOrder({
+        salesorderId: order.zoho_so_id,
+        trackingNumber: tracking_number,
+        courier: courier
+      }).catch(() => {});
+    }
 
     const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id);
     res.json({ success: true, data: { order: updated } });

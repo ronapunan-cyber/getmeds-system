@@ -43,8 +43,9 @@ export const AuthProvider = ({ children }) => {
     throw new Error('Login failed');
   };
 
-  const quickLogin = async (email) => {
-    const { data } = await client.post('/api/test/quick-login', { email });
+  const quickLogin = async (target) => {
+    const payload = typeof target === 'string' ? { email: target } : target;
+    const { data } = await client.post('/api/test/quick-login', payload);
     if (data.success) {
       const { token: newToken, user: userData } = data.data;
       sessionStorage.setItem('token', newToken);
