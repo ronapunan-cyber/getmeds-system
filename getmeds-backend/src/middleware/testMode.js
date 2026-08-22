@@ -10,6 +10,15 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 function isTestModeEnabled() {
+  if (process.argv.includes('--test') || process.argv.includes('--test-mode')) {
+    process.env.TEST_MODE = 'true';
+    return process.env.NODE_ENV !== 'production';
+  }
+  if (process.argv.includes('--normal')) {
+    process.env.TEST_MODE = 'false';
+    return false;
+  }
+
   // In development, sync with local .env file changes dynamically (skip in Jest unit tests)
   if (process.env.IS_JEST !== 'true' && process.env.NODE_ENV !== 'test') {
     try {

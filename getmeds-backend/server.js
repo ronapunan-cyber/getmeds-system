@@ -2,17 +2,19 @@ require('dotenv').config();
 const app = require('./src/app');
 const zohoRetryService = require('./src/services/zohoRetryService');
 
+const { isTestModeEnabled } = require('./src/middleware/testMode');
+
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
-  const isTestMode = process.env.TEST_MODE === 'true' && process.env.NODE_ENV !== 'production';
-  const isDebug = process.env.DEBUG === 'true';
+  const isTestMode = isTestModeEnabled();
+  const isDebug = process.env.DEBUG === 'true' || isTestMode;
 
   console.log(`\n🚀 Getmeds API Server running on http://localhost:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Debug Mode: ${isDebug ? 'ENABLED' : 'disabled'}`);
-  console.log(`   Test Mode:  ${isTestMode ? '🧪 ENABLED (Local Development)' : 'disabled'}\n`);
+  console.log(`   Mode:       ${isTestMode ? '🧪 TEST MODE (Omni-Admin Active)' : '🛡️ NORMAL MODE (Standard RBAC)'}\n`);
 
   // Background Zoho sync retry loop — only in the real running server, never
   // under `jest` (tests drive zohoRetryService.processQueue() directly).

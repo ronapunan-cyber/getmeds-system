@@ -91,6 +91,15 @@ class ZohoAdapter {
   }
 
   /**
+   * Activate an item in Zoho to ensure it is in 'active' status.
+   * @param {string} itemId
+   * @returns {Promise<{code:number, message:string, item?:object}>}
+   */
+  async activateItem(itemId) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Post an inventory adjustment (positive or negative quantity delta).
    * @param {object} adjustmentData - {itemId, sku, quantityAdjusted, reason}
    * @returns {Promise<{code:number, message:string, inventory_adjustment:object}>}
@@ -133,6 +142,15 @@ class ZohoAdapter {
    * @returns {Promise<{code:number, message:string}>}
    */
   async addOrderComment(salesorderId, commentText) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Record payment for a Sales Order in Zoho (creates invoice & applies customer payment).
+   * @param {object} paymentData - {salesorderId, amount, paymentReference, paymentDate, paymentMethod, notes}
+   * @returns {Promise<{code:number, message:string, invoice_id?:string, payment?:object}>}
+   */
+  async recordPaymentForSalesOrder(paymentData) {
     throw new Error('Not implemented');
   }
 

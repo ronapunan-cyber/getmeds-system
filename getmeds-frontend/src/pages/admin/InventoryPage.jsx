@@ -47,7 +47,8 @@ const InventoryPage = () => {
       toast.success(res.message || 'Catalog pushed to Zoho successfully', { icon: '🚀' });
     },
     onError: (err) => {
-      toast.error(`Push failed: ${err.response?.data?.message || err.message}`);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      toast.error(`Push failed: ${msg}`);
     }
   });
 
@@ -59,7 +60,8 @@ const InventoryPage = () => {
       toast.success(res.message || 'Stock pulled from Zoho successfully', { icon: '🔄' });
     },
     onError: (err) => {
-      toast.error(`Pull failed: ${err.response?.data?.message || err.message}`);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      toast.error(`Pull failed: ${msg}`);
     }
   });
 
@@ -72,7 +74,8 @@ const InventoryPage = () => {
       setSelectedProduct(null);
     },
     onError: (err) => {
-      toast.error(`Adjustment failed: ${err.response?.data?.message || err.message}`);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      toast.error(`Adjustment failed: ${msg}`);
     }
   });
 

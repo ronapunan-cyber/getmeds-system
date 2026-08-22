@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, RefreshCw, Sparkles } from 'lucide-react';
 import client from '../../api/client';
 
 const FinanceQueuePage = () => {
@@ -16,6 +16,26 @@ const FinanceQueuePage = () => {
     refetchInterval: 30000
   });
   const orders = data?.data?.orders || [];
+
+  const handleAutoFillPayment = () => {
+    if (!selectedOrder) return;
+    const randomRef = `BDO-REF-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+    const today = new Date().toISOString().split('T')[0];
+
+    setForm({
+      status: 'verified',
+      payment_reference: randomRef,
+      payment_date: today,
+      amount: selectedOrder.total_amount || '',
+      payment_method: 'bank_transfer',
+      notes: 'Payment verified and cleared via BDO Online corporate banking match.'
+    });
+
+    toast.success(`⚡ Auto-filled payment approval data (${randomRef})`, {
+      icon: '💳',
+      duration: 3000
+    });
+  };
 
   const mutation = useMutation({
     mutationFn: ({ id, payload }) => client.post(`/api/finance/orders/${id}/verify-payment`, payload).then(r => r.data),
@@ -109,9 +129,22 @@ const FinanceQueuePage = () => {
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 border-b border-slate-200 bg-surface">
-                <h2 className="text-sm font-semibold text-ink-primary">Verify Payment — {selectedOrder.getmeds_order_id}</h2>
-                <p className="text-xs text-ink-secondary mt-0.5">{selectedOrder.customer_name} · ₱{(selectedOrder.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+              <div className="px-4 py-3 border-b border-slate-200 bg-surface flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-ink-primary">Verify Payment — {selectedOrder.getmeds_order_id}</h2>
+                  <p className="text-xs text-ink-secondary mt-0.5">{selectedOrder.customer_name} · ₱{(selectedOrder.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                </div>
+                {import.meta.env.VITE_TEST_MODE === 'true' && (
+                  <button
+                    type="button"
+                    onClick={handleAutoFillPayment}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer"
+                    title="Populate mock approval reference and bank transfer data"
+                  >
+                    <Sparkles size={13} className="text-amber-700" />
+                    <span>[Auto-Fill Payment]</span>
+                  </button>
+                )}
               </div>
               <form onSubmit={handleSubmit} className="p-4 space-y-4">
                 {/* Decision */}

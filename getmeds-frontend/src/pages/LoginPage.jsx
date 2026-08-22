@@ -1,18 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { EyeOff } from 'lucide-react';
+import { EyeOff, FlaskConical, ArrowRight } from 'lucide-react';
 import employeeBg from '../assets/employee.jpg';
-
-const QUICK_ROLES = [
-  { role: 'Admin', email: 'admin@getmeds.ph' },
-  { role: 'MedRep', email: 'medrep@getmeds.ph' },
-  { role: 'Finance', email: 'finance@getmeds.ph' },
-  { role: 'Dispatch', email: 'dispatch@getmeds.ph' },
-  { role: 'Manager', email: 'manager@getmeds.ph' },
-];
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -37,22 +29,22 @@ const LoginPage = () => {
     }
   };
 
-  const handleQuickLogin = async (quickEmail) => {
+  const handleTestHubLogin = async () => {
     setError(null);
     setIsLoading(true);
     try {
       if (quickLogin) {
-        await quickLogin(quickEmail);
+        await quickLogin('admin@getmeds.ph');
       } else {
-        await login(quickEmail, 'demo123');
+        await login('admin@getmeds.ph', 'demo123');
       }
       navigate('/dashboard');
     } catch (err) {
       try {
-        await login(quickEmail, 'demo123');
+        await login('admin@getmeds.ph', 'demo123');
         navigate('/dashboard');
       } catch (fallbackErr) {
-        setError(err.response?.data?.error?.message || err.response?.data?.message || 'Quick login failed');
+        setError(err.response?.data?.error?.message || err.response?.data?.message || 'God-Mode login failed');
       }
     } finally {
       setIsLoading(false);
@@ -96,25 +88,21 @@ const LoginPage = () => {
               We missed you! Please enter your details.
             </p>
 
-            <div className="flex flex-wrap justify-center gap-2 mb-8">
-              {QUICK_ROLES.map((r) => (
+            {import.meta.env.VITE_TEST_MODE === 'true' && (
+              <div className="mb-6">
                 <button
-                  key={r.role}
                   type="button"
-                  onClick={() => handleQuickLogin(r.email)}
+                  onClick={handleTestHubLogin}
                   disabled={isLoading}
-                  className="px-3 py-1.5 rounded-full border border-ink-primary bg-transparent text-[11px] font-medium text-ink-primary hover:bg-surface hover:border-getmeds-blue hover:text-getmeds-blue transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 px-4 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-2xs group disabled:opacity-50"
+                  title="Enter Test Hub"
                 >
-                  {r.role}
+                  <FlaskConical size={16} className="text-amber-700 group-hover:rotate-12 transition-transform" />
+                  <span>Enter Test Hub</span>
+                  <ArrowRight size={14} className="text-amber-700 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-              ))}
-              <Link
-                to="/test-mode"
-                className="px-3 py-1.5 rounded-full border border-amber-600 bg-amber-50 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition-colors flex items-center justify-center"
-              >
-                Test Hub &rarr;
-              </Link>
-            </div>
+              </div>
+            )}
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <ErrorMessage message={error} onClose={() => setError(null)} />

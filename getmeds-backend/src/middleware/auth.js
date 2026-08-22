@@ -43,10 +43,18 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
+const { isTestModeEnabled } = require('./testMode');
+
 function requireRole(...roles) {
   const normalized = roles.map(r => r.toLowerCase());
   return (req, res, next) => {
     const userRole = (req.user?.role || req.user?.role_name || '').toLowerCase();
+    
+    // When TEST_MODE=true, allow Admin users to access and execute any role action
+    if (isTestModeEnabled() && userRole === 'admin') {
+      return next();
+    }
+
     if (!req.user || !normalized.includes(userRole)) {
       return res.status(403).json({
         success: false,

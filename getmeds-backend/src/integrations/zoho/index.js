@@ -189,6 +189,7 @@ const facadeMethods = [
   'packSalesOrder',
   'shipSalesOrder',
   'addOrderComment',
+  'recordPaymentForSalesOrder',
   'setSimulatedOutage',
   'isSimulatedOutage'
 ];

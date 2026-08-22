@@ -80,6 +80,11 @@ router.post('/items', (req, res) => {
   state.items.set(id, item);
   res.status(201).json({ code: 0, message: 'success', item });
 });
+router.post('/items/:id/active', (req, res) => {
+  const item = state.items.get(req.params.id);
+  if (item) item.status = 'active';
+  res.json({ code: 0, message: 'Item status has been changed to Active.', item });
+});
 
 // ── Contacts (read + create, no delete) ─────────────────────────────────
 router.get('/contacts', (req, res) => {
@@ -132,6 +137,82 @@ router.post('/salesorders', (req, res) => {
   };
   state.salesOrders.set(salesorder_id, salesorder);
   res.status(201).json({ code: 0, message: 'Sales order created successfully [HTTP-MOCK MODE]', salesorder });
+});
+
+// ── Status updates, Comments, Packages, Shipments ──────────────────────
+router.post('/salesorders/:id/status/confirmed', (req, res) => {
+  const so = state.salesOrders.get(req.params.id);
+  if (so) so.status = 'confirmed';
+  res.json({ code: 0, message: 'Sales order status has been changed to Confirmed.' });
+});
+
+router.post('/salesorders/:id/comments', (req, res) => {
+  res.json({ code: 0, message: 'Comment added', comment: { description: req.body.description } });
+});
+
+router.get('/packages', (req, res) => {
+  res.json({ code: 0, message: 'success', packages: [] });
+});
+
+router.post('/packages', (req, res) => {
+  const pkgId = `MOCK-PKG-${Date.now()}`;
+  res.status(201).json({ code: 0, message: 'Package created successfully', package: { package_id: pkgId } });
+});
+
+router.post('/shipmentorders', (req, res) => {
+  res.status(201).json({ code: 0, message: 'Shipment Order Created Successfully' });
+});
+
+// ── Invoices & Customer Payments ────────────────────────────────────────
+router.get('/invoices', (req, res) => {
+  res.json({ code: 0, message: 'success', invoices: [] });
+});
+
+router.post('/invoices/fromsalesorder', (req, res) => {
+  const soId = req.query.salesorder_id || req.body.salesorder_id;
+  const so = soId ? state.salesOrders.get(soId) : null;
+  const invoiceId = `MOCK-INV-${Date.now()}`;
+  if (so) {
+    so.invoice_status = 'invoiced';
+    so.invoiced_status = 'invoiced';
+  }
+  res.status(201).json({
+    code: 0,
+    message: 'Invoice created successfully from sales order',
+    invoice: { invoice_id: invoiceId, salesorder_id: soId, ...req.body }
+  });
+});
+
+router.post('/invoices', (req, res) => {
+  const invoiceId = `MOCK-INV-${Date.now()}`;
+  const soId = req.body.salesorder_id;
+  if (soId) {
+    const so = state.salesOrders.get(soId);
+    if (so) {
+      so.invoice_status = 'invoiced';
+      so.invoiced_status = 'invoiced';
+    }
+  }
+  res.status(201).json({ code: 0, message: 'Invoice created successfully', invoice: { invoice_id: invoiceId, ...req.body } });
+});
+
+router.post('/customerpayments', (req, res) => {
+  const paymentId = `MOCK-PAY-${Date.now()}`;
+  // Mark all sales orders associated with invoices as paid
+  for (const so of state.salesOrders.values()) {
+    so.paid_status = 'paid';
+    so.payment_status = 'paid';
+  }
+  res.status(201).json({ code: 0, message: 'Payment created successfully', payment: { payment_id: paymentId, ...req.body } });
+});
+
+router.post('/invoices/:id/payments', (req, res) => {
+  const paymentId = `MOCK-PAY-${Date.now()}`;
+  for (const so of state.salesOrders.values()) {
+    so.paid_status = 'paid';
+    so.payment_status = 'paid';
+  }
+  res.status(201).json({ code: 0, message: 'Payment recorded successfully', payment: { payment_id: paymentId, ...req.body } });
 });
 
 // Explicitly reject anything destructive with a clear message rather than

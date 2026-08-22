@@ -1,21 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
-import { useDebug } from '../../context/DebugContext';
 import NotificationBell from '../ui/NotificationBell';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { 
   LogOut, 
   User, 
-  FlaskConical, 
   CheckCheck, 
   Package, 
   Clock, 
   AlertTriangle, 
-  Terminal,
   Menu
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { formatPHT } from '../../utils/dateUtils';
 
 const roleBadgeStyles = {
   medrep: 'bg-getmeds-blue/10 text-getmeds-blue-dark border-getmeds-blue/30',
@@ -28,7 +26,6 @@ const roleBadgeStyles = {
 const Topbar = ({ onToggleSidebar }) => {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const { isDebug, toggleDebug } = useDebug();
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -58,13 +55,7 @@ const Topbar = ({ onToggleSidebar }) => {
   };
 
   const formatTimestamp = (dateStr) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString();
-    } catch {
-      return dateStr;
-    }
+    return formatPHT(dateStr, 'timeline');
   };
 
   const roleKey = (user?.role || '').toLowerCase();
@@ -73,7 +64,7 @@ const Topbar = ({ onToggleSidebar }) => {
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shadow-2xs z-20 flex-shrink-0">
-      {/* Left Area: Mobile Hamburger Button & Developer Toggle */}
+      {/* Left Area: Mobile Hamburger Button */}
       <div className="flex items-center space-x-2 sm:space-x-3">
         {/* Hamburger Menu Button (visible on mobile / tablet < lg) */}
         <button
@@ -85,41 +76,6 @@ const Topbar = ({ onToggleSidebar }) => {
         >
           <Menu size={22} />
         </button>
-
-        {/* Developer Toggle Switch */}
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-surface px-2.5 sm:px-3 py-1.5 rounded-full border border-slate-200">
-          <Terminal size={14} className={isDebug ? 'text-getmeds-blue' : 'text-ink-secondary'} />
-          <span className="hidden xs:inline text-[11px] font-semibold text-ink-secondary tracking-wider uppercase">
-            Debug
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isDebug}
-            onClick={toggleDebug}
-            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              isDebug ? 'bg-getmeds-blue' : 'bg-slate-300'
-            }`}
-            title="Toggle Developer Debug Mode & Sample Auto-Fill Tools"
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                isDebug ? 'translate-x-4' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        {isDebug && (
-          <Link
-            to="/test-mode"
-            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors animate-in fade-in"
-            title="Open Test Mode Hub"
-          >
-            <FlaskConical size={13} className="text-amber-700" />
-            <span>Test Hub</span>
-          </Link>
-        )}
       </div>
 
       {/* Right Area: Notification Bell & User Identity */}

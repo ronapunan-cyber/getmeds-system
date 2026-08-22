@@ -33,7 +33,8 @@ async function getInventoryStatus(req, res) {
 
     const products = localProducts.map((p) => {
       const matchedZoho = zohoMapBySku.get(p.sku) || zohoMapByName.get(p.name.toLowerCase().trim());
-      const zohoStock = matchedZoho ? (matchedZoho.stock_on_hand ?? matchedZoho.actual_available_stock ?? 0) : null;
+      const zohoStock = matchedZoho ? (matchedZoho.stock_on_hand ?? matchedZoho.actual_available_stock ?? matchedZoho.initial_stock ?? 0) : null;
+      const zohoPrice = matchedZoho ? (matchedZoho.rate ?? matchedZoho.price ?? null) : null;
       const zohoItemId = matchedZoho ? matchedZoho.item_id : p.zoho_item_id;
 
       let syncStatus = 'not_in_zoho';
@@ -54,6 +55,7 @@ async function getInventoryStatus(req, res) {
         name: p.name,
         sku: p.sku,
         unit_price: p.unit_price,
+        zoho_price: zohoPrice,
         unit: p.unit,
         local_stock: p.stock,
         zoho_stock: zohoStock,

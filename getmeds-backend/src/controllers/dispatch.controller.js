@@ -1,6 +1,6 @@
 const db = require('../db/database');
 const zoho = require('../integrations/zoho');
-const { logEvent } = require('../services/auditService');
+const { logEvent, resolveActor } = require('../services/auditService');
 const { notify, getUserIdsByRole } = require('../services/notificationService');
 
 // Dispatch queue: ready_for_dispatch and picking_packing orders
@@ -25,6 +25,8 @@ exports.getQueue = (req, res, next) => {
 exports.updateStatus = (req, res, next) => {
   try {
     const { status } = req.body;
+    const effectiveActor = resolveActor(req.user, 'dispatch');
+
     if (!['picking', 'packing', 'dispatched'].includes(status)) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'status must be picking, packing, or dispatched' } });
     }
@@ -49,16 +51,16 @@ exports.updateStatus = (req, res, next) => {
       const txn = db.transaction(() => {
         db.prepare('UPDATE orders SET status = \'picking_packing\', updated_at = ? WHERE id = ?').run(now, order.id);
         db.prepare('UPDATE dispatch_records SET status = ? WHERE order_id = ?').run(status, order.id);
-        logEvent({ orderId: order.id, eventType: 'DISPATCH_STATUS_UPDATE', oldStatus: order.status, newStatus: 'picking_packing', actorId: req.user.id, actorName: req.user.name, notes: `Dispatch status: ${status}` });
+        logEvent({ orderId: order.id, eventType: 'DISPATCH_STATUS_UPDATE', oldStatus: order.status, newStatus: 'picking_packing', actorId: effectiveActor.id, actorName: effectiveActor.name, notes: `Dispatch status: ${status}` });
       });
       txn();
 
       if (order.zoho_so_id) {
         if (status === 'picking') {
-          zoho.addOrderComment(order.zoho_so_id, `Pharmacy Picking in progress by ${req.user.name}`).catch(() => {});
+          zoho.addOrderComment(order.zoho_so_id, `Pharmacy Picking in progress by ${effectiveActor.name}`).catch(() => {});
         } else if (status === 'packing') {
           zoho.packSalesOrder(order.zoho_so_id).catch(() => {});
-          zoho.addOrderComment(order.zoho_so_id, `Order Packed by ${req.user.name}`).catch(() => {});
+          zoho.addOrderComment(order.zoho_so_id, `Order Packed by ${effectiveActor.name}`).catch(() => {});
         }
       }
 
@@ -69,14 +71,14 @@ exports.updateStatus = (req, res, next) => {
 
       const txn = db.transaction(() => {
         db.prepare('UPDATE orders SET status = \'dispatched\', updated_at = ? WHERE id = ?').run(now, order.id);
-        db.prepare('UPDATE dispatch_records SET status = \'dispatched\', dispatched_by = ?, dispatched_at = ? WHERE order_id = ?').run(req.user.id, now, order.id);
-        logEvent({ orderId: order.id, eventType: 'ORDER_DISPATCHED', oldStatus: 'picking_packing', newStatus: 'dispatched', actorId: req.user.id, actorName: req.user.name });
+        db.prepare('UPDATE dispatch_records SET status = \'dispatched\', dispatched_by = ?, dispatched_at = ? WHERE order_id = ?').run(effectiveActor.id, now, order.id);
+        logEvent({ orderId: order.id, eventType: 'ORDER_DISPATCHED', oldStatus: 'picking_packing', newStatus: 'dispatched', actorId: effectiveActor.id, actorName: effectiveActor.name });
       });
       txn();
 
       if (order.zoho_so_id) {
         zoho.packSalesOrder(order.zoho_so_id).catch(() => {});
-        zoho.addOrderComment(order.zoho_so_id, `Order Dispatched by ${req.user.name} — Awaiting courier tracking`).catch(() => {});
+        zoho.addOrderComment(order.zoho_so_id, `Order Dispatched by ${effectiveActor.name} — Awaiting courier tracking`).catch(() => {});
       }
 
       notify({ orderId: order.id, recipientIds: [order.medrep_user_id], message: `Order ${order.getmeds_order_id} has been dispatched. Awaiting tracking details.`, eventType: 'ORDER_DISPATCHED', orderData: order });
@@ -91,6 +93,7 @@ exports.updateStatus = (req, res, next) => {
 exports.enterTracking = (req, res, next) => {
   try {
     const { courier, tracking_number, dispatch_notes } = req.body;
+    const effectiveActor = resolveActor(req.user, 'dispatch');
 
     if (!courier || !tracking_number) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'courier and tracking_number are required' } });
@@ -120,11 +123,11 @@ exports.enterTracking = (req, res, next) => {
       // tracking_shared → completed (auto-advance)
       db.prepare('UPDATE orders SET status = \'tracking_shared\', updated_at = ? WHERE id = ?').run(now, order.id);
 
-      logEvent({ orderId: order.id, eventType: 'TRACKING_ENTERED', oldStatus: 'dispatched', newStatus: 'tracking_shared', actorId: req.user.id, actorName: req.user.name, notes: `${courier}: ${tracking_number}` });
+      logEvent({ orderId: order.id, eventType: 'TRACKING_ENTERED', oldStatus: 'dispatched', newStatus: 'tracking_shared', actorId: effectiveActor.id, actorName: effectiveActor.name, notes: `${courier}: ${tracking_number}` });
 
       // Auto-complete
       db.prepare('UPDATE orders SET status = \'completed\', updated_at = ? WHERE id = ?').run(now, order.id);
-      logEvent({ orderId: order.id, eventType: 'ORDER_COMPLETED', oldStatus: 'tracking_shared', newStatus: 'completed', actorId: req.user.id, actorName: req.user.name });
+      logEvent({ orderId: order.id, eventType: 'ORDER_COMPLETED', oldStatus: 'tracking_shared', newStatus: 'completed', actorId: effectiveActor.id, actorName: effectiveActor.name });
 
       // Notify MedRep with tracking details
       notify({

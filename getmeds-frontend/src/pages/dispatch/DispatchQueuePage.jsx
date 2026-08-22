@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Package, Truck, MapPin, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Package, Truck, MapPin, RefreshCw, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 import client from '../../api/client';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
@@ -30,6 +30,23 @@ const DispatchQueuePage = () => {
     refetchInterval: 30000
   });
   const orders = data?.data?.orders || [];
+
+  const handleAutoGenerateTracking = () => {
+    const couriers = ['Lalamove Express', 'LBC Express', 'J&T Express', 'Grab Express', 'Ninja Van'];
+    const randomCourier = couriers[Math.floor(Math.random() * couriers.length)];
+    const randomTrk = `TRK-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    setTrackingForm({
+      courier: randomCourier,
+      tracking_number: randomTrk,
+      dispatch_notes: 'Temperature-controlled parcel dispatched for immediate same-day delivery.'
+    });
+
+    toast.success(`⚡ Auto-generated tracking: ${randomTrk} (${randomCourier})`, {
+      icon: '🚚',
+      duration: 3000
+    });
+  };
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }) => client.post(`/api/dispatch/orders/${id}/update-status`, { status }).then(r => r.data),
@@ -210,9 +227,22 @@ const DispatchQueuePage = () => {
       {trackingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md border border-slate-200">
-            <div className="px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-ink-primary">Enter Tracking Details</h3>
-              <p className="text-sm text-ink-secondary">{trackingOrder.getmeds_order_id} · {trackingOrder.customer_name}</p>
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-ink-primary">Enter Tracking Details</h3>
+                <p className="text-sm text-ink-secondary">{trackingOrder.getmeds_order_id} · {trackingOrder.customer_name}</p>
+              </div>
+              {import.meta.env.VITE_TEST_MODE === 'true' && (
+                <button
+                  type="button"
+                  onClick={handleAutoGenerateTracking}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer"
+                  title="Generate randomized unique tracking number"
+                >
+                  <Sparkles size={13} className="text-amber-700" />
+                  <span>[Auto-Generate Tracking]</span>
+                </button>
+              )}
             </div>
             <form onSubmit={handleTrackingSubmit} className="px-6 py-4 space-y-4">
               <div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { 
   CreditCard, 
   CheckCircle, 
@@ -8,16 +9,34 @@ import {
   RefreshCw, 
   Eye, 
   Search, 
-  FileText,
-  Calendar
+  Calendar, 
+  Clock, 
+  Building2, 
+  User, 
+  DollarSign, 
+  ChevronRight,
+  Filter,
+  Zap
 } from 'lucide-react';
-import { format } from 'date-fns';
 import client from '../../api/client';
+import { formatPHT } from '../../utils/dateUtils';
 import OrderStatusBadge from '../../components/ui/OrderStatusBadge';
 
 const PaymentHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // all | verified | rejected
+  const queryClient = useQueryClient();
+
+  const syncPaymentMutation = useMutation({
+    mutationFn: (orderId) => client.post(`/api/finance/orders/${orderId}/sync-payment`),
+    onSuccess: (res) => {
+      toast.success(res?.data?.data?.message || 'Zoho payment registered as Paid!');
+      queryClient.invalidateQueries({ queryKey: ['finance-orders-all'] });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error?.message || 'Failed to sync payment to Zoho');
+    }
+  });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['finance-orders-all'],
@@ -185,15 +204,29 @@ const PaymentHistoryPage = () => {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs text-ink-secondary">
-                      {order.created_at ? format(new Date(order.created_at), 'MMM d, yyyy') : '—'}
+                      {formatPHT(order.created_at, 'date')}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/orders/${order.id}`}
-                        className="inline-flex items-center gap-1 text-xs text-getmeds-blue hover:text-getmeds-blue-dark font-semibold"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Details
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {import.meta.env.VITE_TEST_MODE === 'true' && (
+                          <button
+                            type="button"
+                            disabled={syncPaymentMutation.isPending}
+                            onClick={() => syncPaymentMutation.mutate(order.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                            title="Test Mode: Force Zoho Payment Sync"
+                          >
+                            <Zap className="w-3 h-3 text-amber-600" />
+                            {syncPaymentMutation.isPending ? 'Syncing...' : 'Force Zoho Sync'}
+                          </button>
+                        )}
+                        <Link
+                          to={`/orders/${order.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-getmeds-blue hover:text-getmeds-blue-dark font-semibold"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Details
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );

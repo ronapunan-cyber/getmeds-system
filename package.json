@@ -1,0 +1,14 @@
+{
+  "name": "getmeds-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix getmeds-backend run dev",
+    "dev:test": "npm --prefix getmeds-backend run dev:test",
+    "dev:backend": "npm --prefix getmeds-backend run dev",
+    "dev:frontend": "npm --prefix getmeds-frontend run dev",
+    "dev:test:backend": "npm --prefix getmeds-backend run dev:test",
+    "dev:test:frontend": "npm --prefix getmeds-frontend run dev:test",
+    "test": "npm --prefix getmeds-backend test"
+  }
+}

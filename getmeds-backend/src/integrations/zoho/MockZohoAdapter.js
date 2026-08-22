@@ -87,6 +87,24 @@ class MockZohoAdapter extends ZohoAdapter {
       line_items: (orderData.items || []).map((i) => ({ sku: i.sku, quantity: i.quantity }))
     });
 
+    // Ensure all order items exist in mock items and are active
+    for (const item of (orderData.items || [])) {
+      const existing = [...this._items.values()].find(
+        (i) => (item.sku && i.sku === item.sku) || i.name === item.name
+      );
+      if (existing) {
+        existing.status = 'active';
+      } else {
+        await this.createItem({
+          name: item.name,
+          sku: item.sku,
+          unit_price: item.unit_price || 0,
+          stock: item.stock || 100,
+          unit: item.unit || 'pc'
+        });
+      }
+    }
+
     const salesorder = {
       salesorder_id,
       salesorder_number,
@@ -134,6 +152,15 @@ class MockZohoAdapter extends ZohoAdapter {
     return { code: 0, message: 'success', items: [...this._items.values()] };
   }
 
+  async activateItem(itemId) {
+    const item = this._items.get(itemId);
+    if (item) {
+      item.status = 'active';
+      this._log('[ZOHO_MOCK] Activated item:', itemId);
+    }
+    return { code: 0, message: 'Item status has been changed to Active. [MOCK MODE]' };
+  }
+
   async createItem(itemData) {
     const itemId = `MOCK-ITEM-${itemData.sku || this._items.size + 1}`;
     const item = {
@@ -156,6 +183,9 @@ class MockZohoAdapter extends ZohoAdapter {
       (i) => (productData.sku && i.sku === productData.sku) || i.name === productData.name
     );
     if (existing) {
+      if (existing.status === 'inactive') {
+        existing.status = 'active';
+      }
       return { code: 0, message: 'success', item: existing };
     }
     return this.createItem(productData);
@@ -217,6 +247,24 @@ class MockZohoAdapter extends ZohoAdapter {
   async addOrderComment(salesorderId, commentText) {
     this._log(`[ZOHO_MOCK] Added comment to ${salesorderId}: ${commentText}`);
     return { code: 0, message: 'Comments added. [MOCK MODE]' };
+  }
+
+  async recordPaymentForSalesOrder({ salesorderId, amount, paymentReference, paymentDate, paymentMethod, notes }) {
+    const so = this._salesOrders.get(salesorderId);
+    if (so) {
+      so.status = 'confirmed';
+      so.invoice_status = 'invoiced';
+      so.paid_status = 'paid';
+      so.payment_status = 'paid';
+      so.invoiced_status = 'invoiced';
+      so.payment_reference = paymentReference;
+      this._log(`[ZOHO_MOCK] Recorded payment for SO ${salesorderId}: PHP ${amount || so.total} | Ref: ${paymentReference}`);
+    }
+    return {
+      code: 0,
+      message: 'Payment recorded and invoice marked as paid [MOCK MODE]',
+      invoice: { invoice_id: `MOCK-INV-${Date.now()}`, status: 'paid' }
+    };
   }
 }
 

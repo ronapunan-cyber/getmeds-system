@@ -2,8 +2,6 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebug } from '../../context/DebugContext';
-import { useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
 import {
   LayoutDashboard,
   PlusCircle,
@@ -18,51 +16,21 @@ import {
   X,
   FlaskConical,
   BarChart3,
-  Shield,
-  Sparkles,
-  Layers,
-  Zap
+  Layers
 } from 'lucide-react';
 
-const QUICK_ROLES_ROW_1 = [
-  { role: 'medrep', label: 'MedRep', email: 'medrep@getmeds.ph', icon: '🩺', activeClass: 'bg-blue-600 text-white border-blue-700 shadow-sm' },
-  { role: 'finance', label: 'Finance', email: 'finance@getmeds.ph', icon: '💳', activeClass: 'bg-emerald-600 text-white border-emerald-700 shadow-sm' },
-  { role: 'dispatch', label: 'Dispatch', email: 'dispatch@getmeds.ph', icon: '🚚', activeClass: 'bg-indigo-600 text-white border-indigo-700 shadow-sm' },
-];
-
-const QUICK_ROLES_ROW_2 = [
-  { role: 'management', label: 'Manager', email: 'manager@getmeds.ph', icon: '📊', activeClass: 'bg-purple-600 text-white border-purple-700 shadow-sm' },
-  { role: 'admin', label: 'Admin', email: 'admin@getmeds.ph', icon: '🛡️', activeClass: 'bg-slate-900 text-white border-slate-950 shadow-sm' },
-];
-
 const Sidebar = ({ isOpen = false, onClose }) => {
-  const { user, quickLogin } = useAuth();
+  const { user } = useAuth();
   const { isDebug } = useDebug();
-  const qc = useQueryClient();
 
   if (!user) return null;
 
   const role = (user.role || '').toLowerCase();
+  const isTestMode = import.meta.env.VITE_TEST_MODE === 'true' || isDebug;
 
   const handleLinkClick = () => {
     if (onClose) {
       onClose();
-    }
-  };
-
-  const handleQuickSwitch = async (email, roleName, roleKey) => {
-    if (user?.role?.toLowerCase() === roleKey && user?.email === email) return;
-    try {
-      if (quickLogin) {
-        await quickLogin({ email, role: roleKey });
-        qc.invalidateQueries();
-        toast.success(`Switched identity to ${roleName}`, {
-          icon: '⚡',
-          duration: 2500,
-        });
-      }
-    } catch (err) {
-      toast.error(`Quick switch failed: ${err.message}`);
     }
   };
 
@@ -110,7 +78,8 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       badgeClass: 'bg-purple-100 text-purple-800',
       links: [
         { to: '/management', icon: <BarChart3 size={18} />, label: 'Global Dashboard', exact: true },
-        { to: '/management/exceptions', icon: <AlertTriangle size={18} />, label: 'Exception Hub' }
+        { to: '/management/exceptions', icon: <AlertTriangle size={18} />, label: 'Exception Hub' },
+        { to: '/inventory', icon: <Package size={18} />, label: 'Inventory & Stock Sync' }
       ]
     },
     {
@@ -118,7 +87,6 @@ const Sidebar = ({ isOpen = false, onClose }) => {
       badge: 'Admin',
       badgeClass: 'bg-slate-900 text-white',
       links: [
-        { to: '/inventory', icon: <Package size={18} />, label: 'Zoho Inventory Sync' },
         { to: '/admin/users', icon: <Users size={18} />, label: 'User Management' },
         { to: '/test-mode', icon: <FlaskConical size={18} />, label: 'Test Mode Hub' }
       ]
@@ -147,7 +115,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
     mainLinks.push(
       { to: '/dispatch', icon: <Truck size={19} />, label: 'Fulfillment Queue' },
       { to: '/dispatch/history', icon: <MapPin size={19} />, label: 'Dispatched / Tracking Log' },
-      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' }
+      { to: '/inventory', icon: <Package size={19} />, label: 'Inventory & Stock' }
     );
     secondaryLinks.push(
       { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
@@ -156,7 +124,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
     mainLinks.push(
       { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
       { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' },
-      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' }
+      { to: '/inventory', icon: <Package size={19} />, label: 'Inventory & Stock' }
     );
     secondaryLinks.push(
       { to: '/orders', icon: <ClipboardList size={19} />, label: 'All Orders Log' }
@@ -165,7 +133,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
     mainLinks.push(
       { to: '/management', icon: <LayoutDashboard size={19} />, label: 'Global Dashboard' },
       { to: '/management/exceptions', icon: <AlertTriangle size={19} />, label: 'Exception Hub' },
-      { to: '/inventory', icon: <Package size={19} />, label: 'Zoho Inventory Sync' },
+      { to: '/inventory', icon: <Package size={19} />, label: 'Inventory & Stock' },
       { to: '/admin/users', icon: <Users size={19} />, label: 'User Management' }
     );
     secondaryLinks.push(
@@ -198,7 +166,7 @@ const Sidebar = ({ isOpen = false, onClose }) => {
                 <Package size={22} className="stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-lg font-bold text-ink-primary tracking-tight leading-none block">Getmeds</span>
+                <span className="text-lg font-bold text-ink-primary tracking-tight leading-none block">GetMeds</span>
                 <span className="text-[10px] uppercase font-semibold text-getmeds-blue tracking-wider block mt-0.5">Enterprise Portal</span>
               </div>
             </div>
@@ -213,87 +181,17 @@ const Sidebar = ({ isOpen = false, onClose }) => {
             </button>
           </div>
 
-          {/* Role Identity Tag & Quick Role Switcher */}
-          <div className="px-4 py-2.5 bg-surface/70 border-b border-slate-100 flex-shrink-0 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider flex items-center gap-1">
-                {isDebug ? <Layers size={13} className="text-amber-600" /> : null}
-                Active Workspace
-              </span>
-              <div className="flex items-center gap-1.5">
-                {isDebug && (
-                  <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">
-                    TEST MODE
-                  </span>
-                )}
-                <span className="text-[11px] font-bold text-ink-primary capitalize bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
-                  {role}
-                </span>
-              </div>
-            </div>
-
-            {/* 1-Click Quick Role Switcher in Test Mode */}
-            {isDebug && (
-              <div className="pt-2 border-t border-slate-200/60">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1">
-                    <Zap size={11} className="text-amber-500" />
-                    Quick Switch Identity
-                  </span>
-                </div>
-                
-                {/* Row 1: MedRep, Finance, Dispatch (3 Columns) */}
-                <div className="grid grid-cols-3 gap-1 mb-1">
-                  {QUICK_ROLES_ROW_1.map((r) => {
-                    const isCurrent = (user.role || '').toLowerCase() === r.role;
-                    return (
-                      <button
-                        key={r.role}
-                        type="button"
-                        onClick={() => handleQuickSwitch(r.email, r.label, r.role)}
-                        className={`text-[10.5px] font-bold py-1.5 px-1 rounded-md text-center transition-all border flex items-center justify-center gap-1 ${
-                          isCurrent
-                            ? `${r.activeClass} ring-1 ring-offset-1 ring-slate-400 font-extrabold`
-                            : 'bg-white text-ink-secondary border-slate-200 hover:bg-slate-50 hover:text-ink-primary hover:border-slate-300'
-                        }`}
-                        title={`Switch active user to ${r.label} (${r.email})`}
-                      >
-                        <span className="text-xs">{r.icon}</span>
-                        <span>{r.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Row 2: Manager, Admin (2 Columns) */}
-                <div className="grid grid-cols-2 gap-1">
-                  {QUICK_ROLES_ROW_2.map((r) => {
-                    const isCurrent = (user.role || '').toLowerCase() === r.role;
-                    return (
-                      <button
-                        key={r.role}
-                        type="button"
-                        onClick={() => handleQuickSwitch(r.email, r.label, r.role)}
-                        className={`text-[10.5px] font-bold py-1.5 px-1.5 rounded-md text-center transition-all border flex items-center justify-center gap-1.5 ${
-                          isCurrent
-                            ? `${r.activeClass} ring-1 ring-offset-1 ring-slate-400 font-extrabold`
-                            : 'bg-white text-ink-secondary border-slate-200 hover:bg-slate-50 hover:text-ink-primary hover:border-slate-300'
-                        }`}
-                        title={`Switch active user to ${r.label} (${r.email})`}
-                      >
-                        <span className="text-xs">{r.icon}</span>
-                        <span>{r.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          {/* Active Workspace Header */}
+          <div className="px-4 py-2.5 bg-surface/70 border-b border-slate-100 flex-shrink-0">
+            <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5">
+              <Layers size={13} className="text-getmeds-blue" />
+              Active Workspace
+            </span>
           </div>
 
           {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5">
-            {isDebug ? (
+            {isTestMode ? (
               /* TEST MODE: Categorized navigation for ALL users' transactions */
               testModeSections.map((section, idx) => (
                 <div key={idx} className="space-y-1">

@@ -1,7 +1,7 @@
 const db = require('../db/database');
 const stateMachine = require('../workflow/stateMachine');
 const { generateOrderId } = require('../services/orderIdService');
-const { logEvent } = require('../services/auditService');
+const { logEvent, resolveActor } = require('../services/auditService');
 const { notify, getUserIdsByRole } = require('../services/notificationService');
 const zoho = require('../integrations/zoho');
 const zohoRetryService = require('../services/zohoRetryService');
@@ -137,6 +137,7 @@ exports.getEvents = (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const { customer_id, items, delivery_address, delivery_notes, customer_type, status: requestedStatus } = req.body;
+    const effectiveActor = resolveActor(req.user, 'medrep');
 
     // Validation
     if (!customer_id) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'customer_id is required' } });
@@ -160,7 +161,16 @@ exports.create = async (req, res, next) => {
       if (!product) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Product ${item.product_id} not found` } });
       const subtotal = product.unit_price * item.quantity;
       total_amount += subtotal;
-      resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unit_price: product.unit_price, subtotal, sku: product.sku, name: product.name });
+      resolvedItems.push({ 
+        product_id: item.product_id, 
+        quantity: item.quantity, 
+        unit_price: product.unit_price, 
+        subtotal, 
+        sku: product.sku, 
+        name: product.name,
+        zoho_item_id: product.zoho_item_id,
+        unit: product.unit
+      });
     }
 
     // 1. Generate unique Getmeds Order ID (GM-YYYYMMDD-XXXX)
@@ -171,17 +181,6 @@ exports.create = async (req, res, next) => {
     const now = new Date().toISOString();
 
     // 2. Create Zoho SO *before* opening the DB transaction below.
-    // better-sqlite3 transactions are synchronous and cannot contain an
-    // `await` — the Zoho call (mock, http-mock, or live, depending on
-    // ZOHO_MODE) is an async network-shaped call, so it must resolve
-    // first and hand a plain, already-resolved object into the closure.
-    //
-    // Fail-safe, not fail-closed: if Zoho is unreachable, the order is NOT
-    // rejected and NOT left half-written — it still proceeds through the
-    // internal state machine (Finance/Dispatch never wait on Zoho), with
-    // zoho_sync_status='failed' and a row queued in zoho_sync_queue for
-    // automatic background retry (see zohoRetryService). No order data is
-    // ever lost to a Zoho outage.
     let zohoResult = null;
     let zohoSyncStatus = 'pending';
     let zohoError = null;
@@ -220,7 +219,7 @@ exports.create = async (req, res, next) => {
       `).run(
         getmedsOrderId,
         customer_id,
-        req.user.id,
+        effectiveActor.id,
         finalStatus,
         resolvedCustomerType,
         total_amount,
@@ -256,8 +255,8 @@ exports.create = async (req, res, next) => {
           eventType: 'ORDER_SUBMITTED',
           oldStatus: 'draft',
           newStatus: finalStatus,
-          actorId: req.user.id,
-          actorName: req.user.name,
+          actorId: effectiveActor.id,
+          actorName: effectiveActor.name,
           notes: `Order submitted for ${customer.name} (${isCredit ? 'Credit Fast-Track' : 'Direct Patient Payment Queue'})`
         });
 
@@ -277,8 +276,8 @@ exports.create = async (req, res, next) => {
           orderId,
           eventType: 'ORDER_CREATED',
           newStatus: 'draft',
-          actorId: req.user.id,
-          actorName: req.user.name,
+          actorId: effectiveActor.id,
+          actorName: effectiveActor.name,
           notes: 'Draft order created'
         });
       }
@@ -340,7 +339,7 @@ exports.submit = async (req, res, next) => {
     }
 
     const items = db.prepare(`
-      SELECT oi.*, p.name as name, p.sku FROM order_items oi
+      SELECT oi.*, p.name as name, p.sku, p.zoho_item_id, p.unit FROM order_items oi
       LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?
     `).all(order.id);
 
@@ -426,9 +425,11 @@ exports.submit = async (req, res, next) => {
         ? ['submitted', 'validating', 'so_pending', 'so_created', 'ready_for_dispatch']
         : ['submitted', 'validating', 'so_pending', 'so_created', 'waiting_for_payment'];
 
+      const effectiveActor = resolveActor(req.user, 'medrep');
+
       let prev = 'draft';
       for (const s of statusPath) {
-        logEvent({ orderId: order.id, eventType: 'STATUS_CHANGE', oldStatus: prev, newStatus: s, actorId: req.user.id, actorName: req.user.name,
+        logEvent({ orderId: order.id, eventType: 'STATUS_CHANGE', oldStatus: prev, newStatus: s, actorId: effectiveActor.id, actorName: effectiveActor.name,
           notes: s === 'so_created'
             ? (zohoResult ? `Zoho SO created: ${zohoResult.salesorder.salesorder_number}` : `Zoho sync failed, queued for automatic retry: ${zohoError}`)
             : undefined });
@@ -441,7 +442,7 @@ exports.submit = async (req, res, next) => {
       // 6a. Notify submitting MedRep
       notify({
         orderId: order.id,
-        recipientIds: [req.user.id],
+        recipientIds: [effectiveActor.id],
         message: `Your order ${getmedsOrderId} for ${order.customer_name} has been submitted (${order.customer_type === 'credit' ? 'Ready for Dispatch' : 'Waiting for Finance Payment Verification'}).`,
         eventType: 'ORDER_SUBMITTED',
         orderData: orderDataForNotif
@@ -478,6 +479,7 @@ exports.setException = (req, res, next) => {
   try {
     const { reason, status } = req.body;
     const targetStatus = status === 'on_hold' ? 'on_hold' : 'exception';
+    const effectiveActor = resolveActor(req.user, 'management');
 
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     if (!order) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
@@ -489,7 +491,7 @@ exports.setException = (req, res, next) => {
       db.prepare('UPDATE orders SET status = ?, exception_reason = ?, updated_at = datetime(\'now\') WHERE id = ?')
         .run(targetStatus, reason || null, order.id);
 
-      logEvent({ orderId: order.id, eventType: 'EXCEPTION_SET', oldStatus: order.status, newStatus: targetStatus, actorId: req.user.id, actorName: req.user.name, notes: reason });
+      logEvent({ orderId: order.id, eventType: 'EXCEPTION_SET', oldStatus: order.status, newStatus: targetStatus, actorId: effectiveActor.id, actorName: effectiveActor.name, notes: reason });
     });
     txn();
 

@@ -6,7 +6,7 @@ const insertEventStmt = db.prepare(`
     order_id, event_type, old_status, new_status, 
     actor_id, actor_name, notes, metadata, created_at
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 `);
 
 /**
@@ -48,5 +48,45 @@ function logEvent({ orderId, eventType, oldStatus, newStatus, actorId, actorName
   }
 }
 
-module.exports = { logEvent };
+const { isTestModeEnabled } = require('../middleware/testMode');
+
+const SEEDED_ROLES = {
+  medrep: { email: 'medrep@getmeds.ph', defaultName: 'Juan dela Cruz (MedRep)' },
+  finance: { email: 'finance@getmeds.ph', defaultName: 'Rosa Reyes (Finance)' },
+  dispatch: { email: 'dispatch@getmeds.ph', defaultName: 'Danilo Santos (Dispatch)' },
+  management: { email: 'manager@getmeds.ph', defaultName: 'Maria Santos (Management)' },
+  admin: { email: 'admin@getmeds.ph', defaultName: 'Admin User' }
+};
+
+/**
+ * Dynamically resolves the appropriate actor for an action.
+ * In TEST_MODE, if an Admin executes a role-specific action (e.g. creating an order,
+ * verifying payment, dispatching), the actor is dynamically mapped to the seeded user
+ * of that domain so the audit trail faithfully records the proper operational role.
+ */
+function resolveActor(user, targetRole) {
+  if (!user) return { id: null, name: 'System', role: targetRole || 'system' };
+  
+  const userRole = (user.role || '').toLowerCase();
+  const normalizedTarget = (targetRole || '').toLowerCase();
+
+  // If TEST_MODE is active and Admin is executing a feature for another role:
+  if (isTestModeEnabled() && userRole === 'admin' && normalizedTarget && userRole !== normalizedTarget) {
+    const seeded = SEEDED_ROLES[normalizedTarget];
+    if (seeded) {
+      const seededUser = db.prepare('SELECT id, name, email, role FROM users WHERE email = ?').get(seeded.email);
+      if (seededUser) {
+        return seededUser;
+      }
+      const fallbackUser = db.prepare('SELECT id, name, email, role FROM users WHERE role = ? AND is_active = 1 LIMIT 1').get(normalizedTarget);
+      if (fallbackUser) {
+        return fallbackUser;
+      }
+    }
+  }
+
+  return user;
+}
+
+module.exports = { logEvent, resolveActor };
 

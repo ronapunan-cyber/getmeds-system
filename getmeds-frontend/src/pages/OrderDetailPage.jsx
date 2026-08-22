@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Package, CreditCard, Truck, Clock, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Truck, Clock, CheckCircle, AlertCircle, ExternalLink, Zap } from 'lucide-react';
 import client from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { formatPHT } from '../utils/dateUtils';
 
 const STATUS_COLORS = {
   draft: 'bg-slate-100 text-slate-700 border border-slate-300',
@@ -29,6 +29,7 @@ const EVENT_ICONS = {
   ORDER_CREATED: '📝', STATUS_CHANGE: '🔄', PAYMENT_VERIFIED: '✅',
   PAYMENT_REJECTED: '❌', ORDER_DISPATCHED: '🚚', TRACKING_ENTERED: '📍',
   ORDER_COMPLETED: '🎉', EXCEPTION_SET: '⚠️', DISPATCH_STATUS_UPDATE: '📦',
+  ZOHO_PAYMENT_SYNCED: '⚡'
 };
 
 const OrderDetailPage = () => {
@@ -48,6 +49,15 @@ const OrderDetailPage = () => {
     mutationFn: ({ status, reason }) => client.patch(`/api/orders/${id}/exception`, { status, reason }).then(r => r.data),
     onSuccess: () => { toast.success('Order status updated'); qc.invalidateQueries({ queryKey: ['order', id] }); },
     onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed')
+  });
+
+  const syncPaymentMutation = useMutation({
+    mutationFn: () => client.post(`/api/finance/orders/${id}/sync-payment`),
+    onSuccess: (res) => {
+      toast.success(res?.data?.data?.message || 'Zoho payment synced as Paid!');
+      qc.invalidateQueries({ queryKey: ['order', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed to sync payment to Zoho')
   });
 
   if (isLoading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-getmeds-blue" /></div>;
@@ -78,7 +88,7 @@ const OrderDetailPage = () => {
             <p className="text-sm text-ink-secondary mt-1">
               {order.customer_name} · <span className={`capitalize px-2 py-0.5 rounded text-xs font-medium ${order.customer_type === 'credit' ? 'bg-getmeds-blue/10 text-getmeds-blue-dark' : 'bg-state-warning-light text-amber-900 border border-state-warning/30'}`}>{order.customer_type}</span>
             </p>
-            <p className="text-xs text-ink-secondary mt-1">MedRep: {order.medrep_name} · Created: {order.created_at ? format(new Date(order.created_at), 'MMM d, yyyy h:mm a') : '—'}</p>
+            <p className="text-xs text-ink-secondary mt-1">MedRep: {order.medrep_name} · Created: {formatPHT(order.created_at)}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
             <span className={`px-3 py-1 rounded-full text-sm font-semibold capitalize ${STATUS_COLORS[order.status] || 'bg-slate-100 text-slate-700'}`}>
@@ -198,7 +208,7 @@ const OrderDetailPage = () => {
                     ['Method', payment.payment_method || '—'],
                     ['Payment Date', payment.payment_date || '—'],
                     ['Verified By', payment.verified_by_name || '—'],
-                    ['Verified At', payment.verified_at ? format(new Date(payment.verified_at), 'MMM d, yyyy h:mm a') : '—'],
+                    ['Verified At', payment.verified_at ? formatPHT(payment.verified_at) : '—'],
                     ['Notes', payment.notes || '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="bg-surface rounded p-3 border border-slate-100">
@@ -206,6 +216,29 @@ const OrderDetailPage = () => {
                       <div className="text-sm text-ink-primary font-medium">{val}</div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Test Mode: Force Zoho Payment Sync Button */}
+              {import.meta.env.VITE_TEST_MODE === 'true' && payment && (
+                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-900 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-600" /> Test Mode: Force Zoho Payment Sync
+                    </p>
+                    <p className="text-[11px] text-amber-700">
+                      Instantly registers this payment in Zoho and changes the Sales Order status to <strong>Paid</strong>.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={syncPaymentMutation.isPending}
+                    onClick={() => syncPaymentMutation.mutate()}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 px-3.5 py-2 rounded-md shadow-xs transition-colors disabled:opacity-50"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    {syncPaymentMutation.isPending ? 'Syncing with Zoho...' : 'Force Zoho Payment Sync'}
+                  </button>
                 </div>
               )}
             </div>
@@ -226,7 +259,7 @@ const OrderDetailPage = () => {
                     ['Courier', dispatch.courier || '—'],
                     ['Tracking Number', dispatch.tracking_number ? <span className="font-mono font-bold text-getmeds-blue">{dispatch.tracking_number}</span> : '—'],
                     ['Dispatched By', dispatch.dispatched_by_name || '—'],
-                    ['Dispatched At', dispatch.dispatched_at ? format(new Date(dispatch.dispatched_at), 'MMM d, yyyy h:mm a') : '—'],
+                    ['Dispatched At', dispatch.dispatched_at ? formatPHT(dispatch.dispatched_at) : '—'],
                     ['Notes', dispatch.dispatch_notes || '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="bg-surface rounded p-3 border border-slate-100">
@@ -268,7 +301,7 @@ const OrderDetailPage = () => {
                           <p className="text-xs text-ink-secondary mt-0.5">By: {event.actor_name || 'System'}</p>
                         </div>
                         <p className="text-xs text-ink-secondary flex-shrink-0 ml-4">
-                          {event.created_at ? format(new Date(event.created_at), 'MMM d, h:mm a') : ''}
+                          {event.created_at ? formatPHT(event.created_at, 'timeline') : ''}
                         </p>
                       </div>
                     </div>

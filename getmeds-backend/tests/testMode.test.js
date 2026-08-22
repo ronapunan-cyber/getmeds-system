@@ -225,5 +225,51 @@ describe('Test Mode Security & Controller', () => {
       expect(responseData.data.simulatedOutage).toBe(false);
       expect(zoho.isSimulatedOutage()).toBe(false);
     });
+
+    test('resolveActor: maps Admin actions to seeded role users in Test Mode', () => {
+      const { resolveActor } = require('../src/services/auditService');
+      const adminUser = { id: 1, name: 'Admin User', email: 'admin@getmeds.ph', role: 'admin' };
+      
+      process.env.TEST_MODE = 'true';
+      process.env.NODE_ENV = 'development';
+
+      const medrepActor = resolveActor(adminUser, 'medrep');
+      expect(medrepActor.email).toBe('medrep@getmeds.ph');
+      expect(medrepActor.role).toBe('medrep');
+
+      const financeActor = resolveActor(adminUser, 'finance');
+      expect(financeActor.email).toBe('finance@getmeds.ph');
+      expect(financeActor.role).toBe('finance');
+
+      const dispatchActor = resolveActor(adminUser, 'dispatch');
+      expect(dispatchActor.email).toBe('dispatch@getmeds.ph');
+      expect(dispatchActor.role).toBe('dispatch');
+
+      // Unchanged when acting as admin
+      const adminActor = resolveActor(adminUser, 'admin');
+      expect(adminActor.email).toBe('admin@getmeds.ph');
+    });
+
+    test('requireRole: allows Admin to bypass role restrictions in Test Mode', () => {
+      const { requireRole } = require('../src/middleware/auth');
+      process.env.TEST_MODE = 'true';
+      process.env.NODE_ENV = 'development';
+
+      const next = jest.fn();
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const req = { user: { id: 1, name: 'Admin User', role: 'admin' } };
+
+      const medrepMiddleware = requireRole('medrep');
+      medrepMiddleware(req, res, next);
+      expect(next).toHaveBeenCalledTimes(1);
+
+      const financeMiddleware = requireRole('finance');
+      financeMiddleware(req, res, next);
+      expect(next).toHaveBeenCalledTimes(2);
+
+      const dispatchMiddleware = requireRole('dispatch');
+      dispatchMiddleware(req, res, next);
+      expect(next).toHaveBeenCalledTimes(3);
+    });
   });
 });

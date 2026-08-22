@@ -29,12 +29,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/" replace />;
   }
   
-  // In Debug / Test Mode, allow access to all transaction pages
-  if (isDebug) {
+  const role = (user.role || '').toLowerCase();
+  const isTestMode = import.meta.env.VITE_TEST_MODE === 'true' || isDebug;
+
+  // In Test Mode, allow simultaneous access to all views and transaction pages
+  if (isTestMode) {
     return children;
   }
   
-  const role = (user.role || '').toLowerCase();
   const normalizedAllowedRoles = allowedRoles ? allowedRoles.map(r => r.toLowerCase()) : [];
 
   if (allowedRoles && !normalizedAllowedRoles.includes(role)) {

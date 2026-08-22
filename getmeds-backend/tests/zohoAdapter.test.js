@@ -93,6 +93,24 @@ describe('MockZohoAdapter', () => {
     const result = await adapter.createSalesOrder(sampleOrderData);
     expect(result.code).toBe(0);
   });
+
+  it('recordPaymentForSalesOrder updates mock sales order to invoiced and paid', async () => {
+    const adapter = new MockZohoAdapter();
+    const created = await adapter.createSalesOrder(sampleOrderData);
+    const soId = created.salesorder.salesorder_id;
+
+    const payResult = await adapter.recordPaymentForSalesOrder({
+      salesorderId: soId,
+      amount: 100,
+      paymentReference: 'TEST-REF-999'
+    });
+
+    expect(payResult.code).toBe(0);
+    const updated = await adapter.getSalesOrder(soId);
+    expect(updated.salesorder.status).toBe('confirmed');
+    expect(updated.salesorder.payment_status).toBe('paid');
+    expect(updated.salesorder.invoice_status).toBe('invoiced');
+  });
 });
 
 describe('ZohoAdapter base class — simulated-outage no-op default', () => {

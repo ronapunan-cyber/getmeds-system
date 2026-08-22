@@ -115,19 +115,63 @@ class LiveZohoAdapter extends ZohoAdapter {
 
   async createSalesOrder(orderData) {
     const contactResult = await this.findOrCreateContact(orderData);
+
+    const lineItems = [];
+    for (const item of (orderData.items || [])) {
+      let zohoItemId = item.zoho_item_id;
+      try {
+        const itemRes = await this.findOrCreateItem({
+          name: item.name,
+          sku: item.sku,
+          unit_price: item.unit_price ?? item.rate ?? item.price ?? 0,
+          stock: item.stock ?? 100,
+          unit: item.unit || 'pc'
+        });
+        if (itemRes.item?.item_id) {
+          zohoItemId = itemRes.item.item_id;
+          if (itemRes.item.status === 'inactive') {
+            await this.activateItem(zohoItemId).catch(() => {});
+          }
+        }
+      } catch (err) {
+        this._log(`[ZOHO_ITEM_RESOLVE_WARN] Could not resolve Zoho item ${item.name}:`, err.message);
+      }
+
+      const li = {
+        name: item.name,
+        quantity: item.quantity,
+        rate: item.unit_price ?? item.rate ?? item.price ?? 0
+      };
+      if (zohoItemId) {
+        li.item_id = zohoItemId;
+      }
+      lineItems.push(li);
+    }
+
     const body = {
       customer_id: contactResult.contact.contact_id,
       date: new Date().toISOString().slice(0, 10),
       reference_number: orderData.getmeds_order_id,
       notes: `Getmeds Order: ${orderData.getmeds_order_id}`,
-      line_items: (orderData.items || []).map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        rate: item.unit_price
-      }))
+      line_items: lineItems
     };
-    const result = await this._request('POST', '/salesorders', { body });
-    return { code: 0, message: 'Sales order created successfully', salesorder: result.salesorder };
+
+    try {
+      const result = await this._request('POST', '/salesorders', { body });
+      return { code: 0, message: 'Sales order created successfully', salesorder: result.salesorder };
+    } catch (err) {
+      if (err.message && err.message.toLowerCase().includes('inactive item')) {
+        this._log('[ZOHO_RETRY] Inactive item error detected. Reactivating order items in Zoho and retrying...');
+        for (const li of lineItems) {
+          if (li.item_id) {
+            await this.activateItem(li.item_id).catch(() => {});
+          }
+        }
+        const retryResult = await this._request('POST', '/salesorders', { body });
+        return { code: 0, message: 'Sales order created successfully after item reactivation', salesorder: retryResult.salesorder };
+      }
+      throw err;
+    }
   }
 
   async getSalesOrder(salesorderId) {
@@ -150,6 +194,18 @@ class LiveZohoAdapter extends ZohoAdapter {
     return { code: 0, message: 'success', items: result.items || [] };
   }
 
+  async activateItem(itemId) {
+    if (!itemId) return { code: 0, message: 'No itemId provided' };
+    try {
+      const result = await this._request('POST', `/items/${itemId}/active`);
+      this._log(`[ZOHO] Activated item in Zoho: ${itemId}`);
+      return { code: 0, message: result.message || 'Item activated', item: result.item };
+    } catch (err) {
+      this._log(`[ZOHO_ACTIVATE_WARN] Could not mark item ${itemId} active:`, err.message);
+      return { code: 0, message: err.message };
+    }
+  }
+
   async createItem(itemData) {
     const body = {
       name: itemData.name,
@@ -157,6 +213,7 @@ class LiveZohoAdapter extends ZohoAdapter {
       rate: itemData.rate ?? itemData.unit_price ?? 0,
       item_type: 'inventory',
       product_type: 'goods',
+      status: 'active',
       initial_stock: itemData.initial_stock ?? itemData.stock ?? 0,
       initial_stock_rate: itemData.rate ?? itemData.unit_price ?? 0,
       unit: itemData.unit || 'pc',
@@ -174,8 +231,18 @@ class LiveZohoAdapter extends ZohoAdapter {
       (i) => (productData.sku && i.sku === productData.sku) || i.name === productData.name
     );
     if (found) {
-      const fullItemRes = await this._request('GET', `/items/${found.item_id}`);
-      return { code: 0, message: 'success', item: fullItemRes.item || found };
+      let itemObj = found;
+      try {
+        const fullItemRes = await this._request('GET', `/items/${found.item_id}`);
+        itemObj = fullItemRes.item || found;
+      } catch {
+        itemObj = found;
+      }
+      if (itemObj.status === 'inactive') {
+        await this.activateItem(found.item_id).catch(() => {});
+        itemObj.status = 'active';
+      }
+      return { code: 0, message: 'success', item: itemObj };
     }
     return this.createItem(productData);
   }
@@ -294,6 +361,127 @@ class LiveZohoAdapter extends ZohoAdapter {
       return { code: 0, message: 'Comment added', comment: result.comment };
     } catch (err) {
       this._log(`[ZOHO_COMMENT_WARN] Could not add comment to SO ${salesorderId}:`, err.message);
+      return { code: 1, message: err.message };
+    }
+  }
+
+  async recordPaymentForSalesOrder({ salesorderId, amount, paymentReference, paymentDate, paymentMethod = 'Bank Transfer', notes }) {
+    if (!salesorderId) return { code: 0, message: 'no salesorderId provided' };
+    try {
+      // 1. Ensure sales order is confirmed
+      await this.confirmSalesOrder(salesorderId).catch(() => {});
+
+      // 2. Fetch the sales order to retrieve customer_id, line items, and total
+      const soRes = await this._request('GET', `/salesorders/${salesorderId}`);
+      const so = soRes.salesorder;
+      if (!so) throw new Error(`Sales order ${salesorderId} not found in Zoho`);
+
+      const customerId = so.customer_id;
+      const today = paymentDate || new Date().toISOString().slice(0, 10);
+      const paymentAmount = Number(amount) || Number(so.total) || 0;
+
+      // 3. Check if an invoice already exists for this salesorder
+      let invoiceId = null;
+      try {
+        const invListRes = await this._request('GET', '/invoices', {
+          query: { salesorder_id: salesorderId }
+        });
+        if (invListRes.invoices && invListRes.invoices.length > 0) {
+          invoiceId = invListRes.invoices[0].invoice_id;
+        }
+      } catch (_) {}
+
+      // 4. If no invoice exists, create one from the sales order
+      if (!invoiceId) {
+        try {
+          const fromSoRes = await this._request('POST', '/invoices/fromsalesorder', {
+            query: { salesorder_id: salesorderId },
+            body: {
+              customer_id: customerId,
+              date: today,
+              due_date: today,
+              reference_number: paymentReference || so.reference_number || undefined
+            }
+          });
+          invoiceId = fromSoRes.invoice?.invoice_id;
+        } catch (fromSoErr) {
+          this._log(`[ZOHO_INV_FROM_SO_WARN] fromsalesorder error: ${fromSoErr.message}, falling back to /invoices POST...`);
+          const lineItems = (so.line_items || []).map((l) => ({
+            item_id: l.item_id,
+            salesorder_item_id: l.line_item_id,
+            quantity: l.quantity,
+            rate: l.rate,
+            name: l.name
+          }));
+
+          const invBody = {
+            customer_id: customerId,
+            salesorder_id: salesorderId,
+            date: today,
+            due_date: today,
+            reference_number: paymentReference || so.reference_number || undefined,
+            line_items: lineItems.length > 0 ? lineItems : undefined,
+            notes: notes || `Payment Verified for GetMeds Order ${so.reference_number || ''}`
+          };
+
+          const createInvRes = await this._request('POST', '/invoices', {
+            query: { salesorder_id: salesorderId },
+            body: invBody
+          });
+          invoiceId = createInvRes.invoice?.invoice_id;
+        }
+      }
+
+      // 5. Record customer payment against the invoice
+      let paymentRes = null;
+      if (invoiceId) {
+        const payBody = {
+          customer_id: customerId,
+          payment_mode: paymentMethod || 'Bank Transfer',
+          amount: paymentAmount,
+          date: today,
+          reference_number: paymentReference || `REF-${Date.now()}`,
+          description: notes || `Payment Verified | Ref: ${paymentReference || 'N/A'}`,
+          invoices: [
+            {
+              invoice_id: invoiceId,
+              amount_applied: paymentAmount
+            }
+          ]
+        };
+        try {
+          paymentRes = await this._request('POST', '/customerpayments', { body: payBody });
+        } catch (payErr) {
+          this._log(`[ZOHO_PAYMENT_WARN] customerpayments failed, attempting direct invoice payment:`, payErr.message);
+          paymentRes = await this._request('POST', `/invoices/${invoiceId}/payments`, {
+            body: {
+              payment_mode: paymentMethod || 'Bank Transfer',
+              amount: paymentAmount,
+              date: today,
+              reference_number: paymentReference || `REF-${Date.now()}`
+            }
+          });
+        }
+      }
+
+      // 6. Add milestone audit comment to Zoho sales order timeline
+      await this.addOrderComment(
+        salesorderId,
+        `Payment Verified by Finance | Ref: ${paymentReference || 'N/A'} | Invoiced & Paid in Zoho (PHP ${paymentAmount})`
+      );
+
+      return {
+        code: 0,
+        message: 'Payment recorded and invoice marked as paid',
+        invoice_id: invoiceId,
+        payment: paymentRes?.payment
+      };
+    } catch (err) {
+      this._log(`[ZOHO_PAYMENT_WARN] Could not record payment for SO ${salesorderId}:`, err.message);
+      await this.addOrderComment(
+        salesorderId,
+        `Payment Verified | Ref: ${paymentReference || 'N/A'} (Invoice note: ${err.message})`
+      ).catch(() => {});
       return { code: 1, message: err.message };
     }
   }

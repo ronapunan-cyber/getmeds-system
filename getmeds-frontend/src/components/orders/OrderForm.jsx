@@ -122,19 +122,18 @@ const OrderForm = ({ onCancel, onSuccess }) => {
     items.every(i => i.productId && Number(i.quantity) > 0)
   );
 
-  // Step 3: [DEBUG: Auto-Fill Fast-Track] Button logic
-  const handleAutoFillFastTrack = () => {
+  // Step 3: [TEST MODE: Auto-Fill] Logic
+  const handleAutoFillCredit = () => {
     if (!customers.length || !products.length) {
       toast.error('Master data is still loading from server...');
       return;
     }
 
-    const stLukes = customers.find(c => c.name?.toLowerCase().includes('luke')) || customers[0];
-    
-    setCustomerId(String(stLukes.id));
-    setCustomerType(stLukes.type || 'credit');
-    setDeliveryAddress(stLukes.address || "St. Luke's Medical Center - 279 E Rodriguez Sr. Ave, Quezon City");
-    setDeliveryNotes('Deliver directly to Central Pharmacy Receiving Bay. Ref: PO-2026-0889.');
+    const creditCust = customers.find(c => c.type === 'credit') || customers[0];
+    setCustomerId(String(creditCust.id));
+    setCustomerType('credit');
+    setDeliveryAddress(creditCust.address || "St. Luke's Medical Center - 279 E Rodriguez Sr. Ave, Quezon City");
+    setDeliveryNotes('Institutional Credit Order. Deliver to Receiving Bay. Ref: PO-2026-CREDIT.');
 
     const sampleItems = [];
     if (products.length >= 1) {
@@ -169,11 +168,45 @@ const OrderForm = ({ onCancel, onSuccess }) => {
     }
 
     setItems(sampleItems);
+    toast.success(`⚡ Auto-filled Credit Order (${creditCust.name})`, { icon: '🚀', duration: 3000 });
+  };
 
-    toast.success("⚡ St. Luke's Medical Center fast-track order auto-filled!", {
-      icon: '🚀',
-      duration: 3000
-    });
+  const handleAutoFillDirect = () => {
+    if (!customers.length || !products.length) {
+      toast.error('Master data is still loading from server...');
+      return;
+    }
+
+    const directCust = customers.find(c => c.type === 'direct') || customers[customers.length - 1];
+    setCustomerId(String(directCust.id));
+    setCustomerType('direct');
+    setDeliveryAddress(directCust.address || "Unit 402, Greenhills Tower, San Juan, Metro Manila");
+    setDeliveryNotes('Direct Patient Order. Advance payment verification required before dispatch.');
+
+    const sampleItems = [];
+    if (products.length >= 1) {
+      sampleItems.push({
+        productId: products[0].id,
+        name: products[0].name,
+        sku: products[0].sku,
+        price: Number(products[0].unit_price || 0),
+        unit: products[0].unit || 'box',
+        quantity: 5
+      });
+    }
+    if (products.length >= 2) {
+      sampleItems.push({
+        productId: products[1].id,
+        name: products[1].name,
+        sku: products[1].sku,
+        price: Number(products[1].unit_price || 0),
+        unit: products[1].unit || 'box',
+        quantity: 2
+      });
+    }
+
+    setItems(sampleItems);
+    toast.success(`⚡ Auto-filled Direct Order (${directCust.name})`, { icon: '💳', duration: 3000 });
   };
 
   // Step 3: Submit via React Query useMutation
@@ -256,17 +289,32 @@ const OrderForm = ({ onCancel, onSuccess }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Debug Auto-Fill Fast-Track Button */}
-          <button
-            type="button"
-            onClick={handleAutoFillFastTrack}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer"
-            title="Auto-fill sample order for St. Luke's Medical Center"
-          >
-            <Sparkles size={14} className="text-amber-700" />
-            <span>[DEBUG: Auto-Fill Fast-Track]</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {import.meta.env.VITE_TEST_MODE === 'true' && (
+            <>
+              {/* Auto-Fill Credit Button */}
+              <button
+                type="button"
+                onClick={handleAutoFillCredit}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-getmeds-blue/15 text-getmeds-blue-dark border border-getmeds-blue/30 hover:bg-getmeds-blue/25 transition-colors shadow-2xs cursor-pointer"
+                title="Auto-fill sample order for Institutional Credit customer (bypasses payment queue)"
+              >
+                <Sparkles size={13} className="text-getmeds-blue" />
+                <span>[Auto-Fill: Credit]</span>
+              </button>
+
+              {/* Auto-Fill Direct Button */}
+              <button
+                type="button"
+                onClick={handleAutoFillDirect}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition-colors shadow-2xs cursor-pointer"
+                title="Auto-fill sample order for Direct Patient customer (routes to finance queue)"
+              >
+                <Sparkles size={13} className="text-amber-700" />
+                <span>[Auto-Fill: Direct]</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"

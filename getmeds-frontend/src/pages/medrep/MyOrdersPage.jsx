@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Plus, RefreshCw, Eye } from 'lucide-react';
 import client from '../../api/client';
+import { formatPHT } from '../../utils/dateUtils';
 
 const STATUS_COLORS = {
   draft: 'bg-slate-100 text-slate-700 border border-slate-300',
@@ -115,7 +116,7 @@ const MyOrdersPage = () => {
                     ) : <span className="text-ink-secondary/60 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-ink-secondary">
-                    {order.created_at ? format(new Date(order.created_at), 'MMM d, yyyy') : '—'}
+                    {formatPHT(order.created_at, 'date')}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link to={`/orders/${order.id}`} className="inline-flex items-center gap-1 text-xs text-getmeds-blue hover:text-getmeds-blue-dark font-semibold">

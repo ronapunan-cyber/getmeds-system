@@ -11,8 +11,8 @@ import {
   Package, 
   ExternalLink 
 } from 'lucide-react';
-import { format } from 'date-fns';
 import client from '../../api/client';
+import { formatPHT } from '../../utils/dateUtils';
 import OrderStatusBadge from '../../components/ui/OrderStatusBadge';
 
 const DispatchHistoryPage = () => {
@@ -173,7 +173,7 @@ const DispatchHistoryPage = () => {
                     <OrderStatusBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3 text-xs text-ink-secondary">
-                    {order.created_at ? format(new Date(order.created_at), 'MMM d, yyyy') : '—'}
+                    {formatPHT(order.created_at, 'date')}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
